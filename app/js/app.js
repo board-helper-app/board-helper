@@ -792,7 +792,9 @@
     scr.classList.remove("tight");
     if (room() < 150) scr.classList.add("tight");
     box.innerHTML = keep;
-    art.style.height = Math.max(90, Math.min(Math.round(art.clientWidth * 0.75), 380, room())) + "px";
+    const image = art.querySelector("img[width][height]");
+    const ratio = image ? Number(image.getAttribute("height")) / Number(image.getAttribute("width")) : 0.75;
+    art.style.height = Math.max(90, Math.min(Math.round(art.clientWidth * ratio), 380, room())) + "px";
     window.scrollTo(0, y);
   }
   // the wheel takes the room left above its buttons, which come right under it in the page (not stuck to the
@@ -2898,7 +2900,7 @@
   window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", applyTheme);
 
   /* ---------- start ---------- */
-  BH.version = "0.32.0";
+  BH.version = "0.32.1";
   applyTheme();
   // reloaded while a sheet was open: step off its history entry; a fresh start has nothing before it
   if (history.state && history.state.ov) history.back();

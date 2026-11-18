@@ -16,10 +16,15 @@
   }
   const plain = html => html.replace(/<li>/g, " ").replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
 
+  const ruleArt = (r, g) => {
+    const images = g && g.images && g.images.rules && g.images.rules[r.id];
+    return r.art || images ? `<div class="rule-img"${images ? BH.assets.attr(g.id, images) : ""}>${r.art || ""}</div>` : "";
+  };
+
   R.ruleHTML = (r, q, hit, g) => `<section class="rule ${hit ? "hit" : ""}" id="rule-${esc(r.id)}">
       <div class="spread"><h3>${esc(r.title)}${r.page ? ` <span class="badge" title="Страница в книге правил">стр. ${esc(r.page)}</span>` : ""}</h3></div>
       ${mark("<div>" + r.body + "</div>", q || "")}
-      ${g && g.images && g.images.rules && g.images.rules[r.id] ? `<div class="rule-img"${BH.assets.attr(g.id, g.images.rules[r.id])}></div>` : ""}
+      ${ruleArt(r, g)}
     </section>`;
 
   R.results = (g, q) => {
@@ -42,7 +47,7 @@
   /* a rule as a collapsible section: the title (and page) always visible, the text on tap */
   R.ruleFold = (r, g) => `<details class="fold" id="rule-${esc(r.id)}">
       <summary><span class="fold-t">${esc(r.title)}</span>${r.page ? `<span class="badge" title="Страница в книге правил">стр. ${esc(r.page)}</span>` : ""}</summary>
-      <div class="fold-body">${r.body}${g && g.images && g.images.rules && g.images.rules[r.id] ? `<div class="rule-img"${BH.assets.attr(g.id, g.images.rules[r.id])}></div>` : ""}</div>
+      <div class="fold-body">${r.body}${ruleArt(r, g)}</div>
     </details>`;
   const srcBadge = f => f.src && BH.FAQ_SRC[f.src] ? ` <span class="badge${f.src === "disputed" || f.src === "house" ? " warn" : ""}">${BH.FAQ_SRC[f.src]}</span>` : "";
   R.faqFold = (f, i) => `<details class="fold" id="faq-${i}">
