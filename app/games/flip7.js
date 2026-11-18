@@ -58,15 +58,16 @@
     "Оригинальные модификаторы: +2, +4, +6, +8, +10 и ×2."
   ]
 };
-  const picture = key => {
+  // Essential sizing travels with the image: an installed PWA may still have the previous CSS.
+  const picture = (key, setup = false) => {
     const [width, height, caption] = plates[key];
-    return `<img class="flip7-plate" src="games/flip7-art/${key}.webp" alt="${caption}" width="${width}" height="${height}" decoding="async">`;
+    return `<img class="a-wide flip7-plate" style="display:block;width:100%;height:${setup ? "100%" : "auto"};min-height:0;object-fit:contain" src="games/flip7-art/${key}.webp" alt="${caption}" width="${width}" height="${height}" decoding="async">`;
   };
-  const card = (key, label) => `<img class="a-card" src="games/flip7-art/card-${key}.webp" alt="${label}" decoding="async">`;
-  const cover = '<img class="flip7-cover" src="games/flip7-art/cover.webp" alt="" width="512" height="512">';
+  const card = (key, label) => `<img class="a-card" style="min-width:0;flex:1 1 0" src="games/flip7-art/card-${key}.webp" alt="${label}" decoding="async">`;
+  const cover = '<img class="flip7-cover" style="display:block;width:100%;height:100%;object-fit:cover" src="games/flip7-art/cover.webp" alt="" width="512" height="512">';
 
   const art = {
-    deck: () => picture("deck"),
+    deck: () => picture("deck", true),
     shuffle: () => A.svg(A.defs() +
       A.deck(110, 80, 6) + A.card({ back: true, x: 170, y: 64, rot: 14 }) +
       `<path d="M92 70 C60 100 70 150 110 168" style="fill:none;stroke:var(--accent);stroke-width:3;stroke-linecap:round" marker-end="url(#ah)"/>` +
@@ -74,7 +75,7 @@
       A.label(160, 214, "перетасовать как следует")),
     secondDeck: () => A.svg(A.deck(84, 84, 6) + `<text x="160" y="128" text-anchor="middle" style="font-family:var(--f-display);font-weight:700;font-size:28px;fill:var(--accent)">+</text>` + A.deck(196, 84, 6, { backColor: "#5B3A6E" }) + A.label(160, 214, "две колоды для 19+ игроков")),
     table: () => A.svg(A.table() + A.deck(96, 82, 6) + A.label(126, 186, "колода") + A.dashedSlot(176, 74) + A.label(204, 186, "сброс")),
-    space: () => picture("line"),
+    space: () => picture("line", true),
     goal: () => A.svg(`<text x="160" y="132" text-anchor="middle" style="font-family:var(--f-display);font-weight:700;font-size:72px;fill:var(--accent)">200</text>` + A.label(160, 172, "очков — и игра заканчивается в конце раунда")),
     challenge: () => A.svg(`<text x="160" y="104" text-anchor="middle" style="font-family:var(--f-display);font-weight:700;font-size:56px;fill:var(--accent)">200</text>` +
       `<text x="160" y="146" text-anchor="middle" style="font-family:var(--f-display);font-weight:600;font-size:19px;fill:var(--ink)">меньше чем</text>` +
@@ -91,7 +92,7 @@
     { id: "second", group: "Карты действий", art: card("second", "Second Chance — Вторая попытка!"), name: "Вторая попытка!", tag: "спасает от повтора", when: "остаётся у активного игрока, к которому пришла",
       does: "Оставьте карту перед собой.\nПришёл повтор номера — сбросьте его вместе с этой картой, и вы остаётесь в раунде.\nУ игрока может быть только одна такая карта: вторую отдайте активному игроку, у которого её нет.",
       note: "Если отдать некому, её сбрасывают. В конце раунда все «Вторые попытки!» сбрасываются, даже неиспользованные." },
-    { id: "plus", group: "Модификаторы", art: '<span class="flip7-card-pair">' + card("plus2", "+2") + card("plus10", "+10") + '</span>', name: "+2 … +10", tag: "прибавить",
+    { id: "plus", group: "Модификаторы", art: '<span class="flip7-card-pair" style="display:flex;justify-content:center;height:100%;min-width:0">' + card("plus2", "+2") + card("plus10", "+10") + '</span>', name: "+2 … +10", tag: "прибавить",
       does: "Прибавьте число с карты к сумме своих числовых карт.\nЭто не числовая карта: на ней не перебрать, в «Подкидной 7» она не входит.",
       note: "Можно остановиться с одним модификатором и без чисел — его очки всё равно ваши." },
     { id: "x2", group: "Модификаторы", art: card("x2", "×2"), name: "×2", tag: "удвоить числа",

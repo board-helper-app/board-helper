@@ -193,8 +193,8 @@ input[type="datetime-local"].input{min-height:48px}
 .flip7-plate{display:block;width:100%;height:auto;border-radius:8px}
 .art:has(.flip7-plate){background:#fff8df}
 .art .flip7-plate{height:100%;min-height:0;object-fit:contain}
-.zoomed .art .flip7-plate{height:auto}
-.rule-img .flip7-plate{max-width:754px}
+.zoomed .art .flip7-plate{height:auto!important}
+.rule-img img.flip7-plate{max-width:754px}
 .flip7-card-pair{display:flex;justify-content:center;height:100%;min-width:0}
 .mc-pic .flip7-card-pair img,.mc-big .flip7-card-pair img{width:50%;min-width:0}
 .rule-img:empty{display:none}
