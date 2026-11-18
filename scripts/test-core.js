@@ -342,9 +342,13 @@ console.log(`${passed} passed${process.exitCode ? ", some FAILED" : ""}`);
     assert.ok(two.some(x => x.includes("обычных «1» в колоде 1, а отмечено")));
   });
   t("flip 7 cards: the three actions and the modifiers, each with its picture or drawing (rulebook pp. 7–9)", () => {
-    const f = BH.game("flip7"), pics = Object.values(f.images.rules).flat();
+    const f = BH.game("flip7");
     assert.deepStrictEqual([...f.cards.map(k => k.id)], ["freeze", "flip3", "second", "plus", "x2"]);
-    for (const k of f.cards) assert.ok(k.img ? pics.includes(k.img) : /<svg/.test(k.art), k.id + ": a picture already in the private assets, or drawn");
+    for (const k of f.cards) {
+      const sources = [...k.art.matchAll(/src="([^"]+)"/g)].map(m => m[1]);
+      assert.ok(sources.length > 0, k.id + ": original card face");
+      for (const src of sources) assert.ok(fs.existsSync(path.join(__dirname, "../app", src)), k.id + ": bundled image exists");
+    }
     assert.ok(f.cards.filter(k => k.group === "Карты действий").every(k => /активного игрока/.test(k.when)), "actions go to any active player (p. 7)");
     const by = id => f.cards.find(k => k.id === id);
     assert.ok(/сохраняет все набранные очки/.test(by("freeze").does), "Freeze keeps the points (p. 7)");
