@@ -890,3 +890,6 @@ body:has(.setup-screen.tight) .topbar{display:none}
 .race-who .won{display:inline-flex}
 .race-auto{margin-top:10px;font-weight:600;color:var(--accent)}
 .race-auto:empty{display:none}
+
+/* Vengeance shares the responsive image contract with the base game. */
+.art:has(.flip7v-plate){background:#172b80}

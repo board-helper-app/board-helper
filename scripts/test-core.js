@@ -357,9 +357,12 @@ console.log(`${passed} passed${process.exitCode ? ", some FAILED" : ""}`);
     assert.ok(/Удвойте/.test(by("x2").does) && /потом добавьте другие модификаторы/.test(by("x2").does), "×2 first, the other modifiers after (p. 9)");
   });
   t("vengeance cards: five actions, three special numbers, the modifiers (rulebook pp. 8–12)", () => {
-    const pics = Object.values(v.images.rules).flat();
     assert.deepStrictEqual([...v.cards.map(k => k.id)], ["just-one-more", "flip4", "swap", "steal", "discard", "zero", "unlucky7", "lucky13", "minus", "half"]);
-    for (const k of v.cards) assert.ok(k.img ? pics.includes(k.img) : /<svg/.test(k.art), k.id + ": a picture already in the private assets, or drawn");
+    for (const k of v.cards) {
+      const sources = [...k.art.matchAll(/src="([^"]+)"/g)].map(m => m[1]);
+      assert.ok(sources.length > 0, k.id + ": original card face");
+      for (const src of sources) assert.ok(fs.existsSync(path.join(__dirname, "../app", src)), k.id + ": bundled image exists");
+    }
     for (const k of v.cards) assert.ok(v.rules.some(r => r.id === k.id) || ["minus", "half"].includes(k.id), k.id + ": the card has its rule");
     const by = id => v.cards.find(k => k.id === id);
     assert.ok(/игрок её разыгрывает/.test(by("just-one-more").does) && /обязан остановиться/.test(by("just-one-more").does), "Just One More: the action is resolved (p. 9: a stayed player must), then stay (p. 10)");
@@ -376,7 +379,8 @@ console.log(`${passed} passed${process.exitCode ? ", some FAILED" : ""}`);
     // a page, a range «11–12» or a list «1, 7»: every number a printed page of the book (1–12)
     for (const r of v.rules) if (r.id !== "tie") assert.ok(String(r.page).split(/[–,\s]+/).filter(Boolean).every(n => /^\d+$/.test(n) && +n >= 1 && +n <= 12), r.id + ": " + r.page);
     for (const grp of v.faqGroups) for (const r of grp.refs) assert.ok(v.rules.some(x => x.id === r), r);
-    for (const k of Object.keys(v.images.rules)) assert.ok(v.rules.some(r => r.id === k), "image for " + k);
+    for (const rule of v.rules) for (const image of (rule.art || "").matchAll(/src="([^"]+)"/g))
+      assert.ok(fs.existsSync(path.join(__dirname, "../app", image[1])), "image for " + rule.id);
   });
   t("vengeance: setup — brutal and challenge steps only when chosen", () => {
     const s = { gameId: "flip7v", players: ["a", "b"], exp: [], opts: {} };
