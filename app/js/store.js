@@ -103,7 +103,7 @@
       out.sessions.push({
         id: x.id, gameId: x.gameId, exp: ids(x.exp), players: pl,
         placeId: typeof x.placeId === "string" && placeIds.has(x.placeId) ? x.placeId : null,
-        created: time(x.created) || Date.now(), startedAt: time(x.startedAt), finishedAt: time(x.finishedAt),
+        created: time(x.created) || time(x.finishedAt) || Date.now(), startedAt: time(x.startedAt), finishedAt: time(x.finishedAt),
         status, setupDone, rounds,
         ...(cleanCoop(x.coop) ? { coop: cleanCoop(x.coop) } : {}),
         ...(cleanRace(x.race, allowed) ? { race: cleanRace(x.race, allowed) } : {}),

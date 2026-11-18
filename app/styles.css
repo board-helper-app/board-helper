@@ -210,6 +210,7 @@ input[type="datetime-local"].input{min-height:48px}
 .scroll-x{overflow-x:auto;-webkit-overflow-scrolling:touch}
 .game-bar{position:sticky;bottom:0;z-index:10;display:flex;gap:10px;padding:12px 0 calc(12px + env(safe-area-inset-bottom,0px));background:linear-gradient(to top,var(--bg) 72%,transparent)}
 .game-bar .btn.primary{flex:1;min-width:0}
+.game-bar [data-act='new-with-player']{white-space:normal}
 .game-bar .ell{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
 .lbl-s{display:none}
 @media (max-width:400px){.game-bar{gap:8px}.game-bar .btn:not(.primary){padding-left:14px;padding-right:14px}.lbl-l{display:none}.lbl-s{display:inline}}
@@ -566,6 +567,11 @@ a.profile{text-decoration:none;color:inherit;border-radius:16px}
 @media (max-width:419px){.phead-fin{display:none}.phead .btn.finish{padding-left:11px;padding-right:11px}}
 .ptabs{display:flex;gap:4px;padding:3px;border-radius:12px;background:var(--sunk)}
 .ptabs button{flex:1 1 0;min-width:0;display:inline-flex;align-items:center;justify-content:center;gap:6px;min-height:38px;padding:6px 8px;border:0;border-radius:9px;background:transparent;color:var(--muted);font-weight:600;font-size:14px;cursor:pointer;white-space:nowrap}
+.year-intro{background:var(--accent-soft)}
+.year-intro p{margin:6px 0 0}
+@media(max-width:480px){
+  .ptabs:has([data-act="stats-tab"]){display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}
+}
 .ptabs button[aria-selected="true"]{background:var(--accent-soft);color:var(--accent)}
 .ptabs button[aria-selected="true"] .ptab-n{background:var(--surface);color:var(--accent)}
 .ptab-n{font-size:12px;line-height:1.5;min-width:20px;padding:0 6px;border-radius:99px;background:var(--chip);color:var(--muted);font-variant-numeric:tabular-nums}

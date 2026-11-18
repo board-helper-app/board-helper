@@ -78,6 +78,48 @@
   // the day a game was played: when it was started (as on the calendar and in the lists)
   BH.sessionDate = s => s.created || s.finishedAt || 0;
 
+  // Calendar-year highlights. Dates follow the session calendar, including backdated entries.
+  BH.yearReview = (sessions, year) => {
+    const priorGames = new Set(), played = [];
+    for (const session of sessions) {
+      if (session.status !== "finished" || !BH.sessionDate(session)) continue;
+      const sessionYear = new Date(BH.sessionDate(session)).getFullYear();
+      if (sessionYear < year) priorGames.add(session.gameId);
+      if (sessionYear === year) played.push(session);
+    }
+    played.sort((a, b) => BH.sessionDate(a) - BH.sessionDate(b));
+    const evenings = new Map(), games = new Map(), wins = new Map(), runs = new Map(), bestRuns = new Map();
+    for (const s of played) {
+      const day = new Date(BH.sessionDate(s)).setHours(0, 0, 0, 0);
+      const duration = s.startedAt && s.finishedAt > s.startedAt ? s.finishedAt - s.startedAt : 0;
+      evenings.set(day, (evenings.get(day) || 0) + duration);
+      games.set(s.gameId, (games.get(s.gameId) || 0) + 1);
+      for (const id of s.players) {
+        if (s.winners.includes(id)) {
+          wins.set(id, (wins.get(id) || 0) + 1);
+          const run = (runs.get(id) || 0) + 1;
+          runs.set(id, run);
+          bestRuns.set(id, Math.max(run, bestRuns.get(id) || 0));
+        } else {
+          runs.set(id, 0);
+        }
+      }
+    }
+    function leaders(counts) {
+      let value = 0, ids = [];
+      for (const [id, count] of counts) {
+        if (count > value) { value = count; ids = []; }
+        if (count && count === value) ids.push(id);
+      }
+      return { value, ids };
+    }
+    return {
+      plays: played.length, evenings: evenings.size,
+      debuts: [...games.keys()].filter(id => !priorGames.has(id)),
+      favorites: leaders(games), champions: leaders(wins), streak: leaders(bestRuns), longest: leaders(evenings)
+    };
+  };
+
   /* games not played for a long time (the home shelf «Давно не играли»): played at least once, the last game more than
      `days` ago, the most forgotten first; a game still going counts as played now. A rolling span, not the calendar year:
      on the 1st of January every game would turn forgotten at once */

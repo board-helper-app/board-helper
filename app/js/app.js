@@ -1447,7 +1447,7 @@
       side: editPlayer === p.id ? "" : `<button class="icon-btn phead-act" data-act="edit-player" data-id="${esc(p.id)}" aria-label="Изменить игрока" title="Изменить">${I.edit}</button>`,
       tabs: tabBar("pc-tab", cur.id, tabs, "Разделы карточки"),
       body: (editPlayer === p.id ? playerEditForm(p) : "") + rate + cur.html,
-      bar: p.hidden ? "" : `<div class="game-bar"><button class="btn primary big" data-act="new-with-player" data-id="${esc(p.id)}">${I.plus}<span class="ell">Новая партия с этим игроком</span></button></div>` });
+      bar: p.hidden ? "" : `<div class="game-bar"><button class="btn primary big" data-act="new-with-player" data-id="${esc(p.id)}">${I.plus}<span>Новая партия с этим игроком</span></button></div>` });
   }
   function playerInfo(p, st) {
     if (!st.played) return `<p class="muted small">За этот период у игрока нет сыгранных партий.</p>`;
@@ -1569,6 +1569,34 @@
   let statsGame = "";
   // the statistics: the screen of tabs — the game filter and the totals on top, then the players, the games, the places
   let statsTab = "players";
+  let reviewYear = new Date().getFullYear();
+  function yearReviewHTML() {
+    const sessions = finishedSessions(), current = new Date().getFullYear();
+    const years = new Set([current]);
+    for (const s of sessions) {
+      const t = BH.sessionDate(s);
+      if (t) years.add(new Date(t).getFullYear());
+    }
+    if (!years.has(reviewYear)) reviewYear = current;
+    const choices = [...years].sort((a, b) => b - a).map(y => `<option value="${y}" ${y === reviewYear ? "selected" : ""}>${y}</option>`).join("");
+    const picker = `<label class="small muted pc-sort">Год<select class="input" data-act="stats-year">${choices}</select></label>`;
+    const st = BH.yearReview(sessions, reviewYear);
+    if (!st.plays) return picker + `<div class="empty">За ${reviewYear} год пока нет завершённых партий.</div>`;
+    const count = (n, ...forms) => n + " " + BH.plural(n, ...forms);
+    const gameName = id => esc(BH.game(id)?.name || id);
+    const playerName = id => esc(BH.player(id)?.name || "Игрок без имени");
+    const fact = (label, value, detail) => `<div class="pc-line"><span>${label}</span><b>${value}<small>${detail}</small></b></div>`;
+    const victories = n => count(n, "победа", "победы", "побед");
+    return picker + `<section class="panel year-intro"><h2>За столом в ${reviewYear} году</h2>
+      <p>${count(st.plays, "партия", "партии", "партий")} за ${count(st.evenings, "игровой вечер", "игровых вечера", "игровых вечеров")}.</p></section>
+      <section class="panel">
+        ${fact("Чаще всего играли", st.favorites.ids.map(gameName).join(", "), count(st.favorites.value, "партия", "партии", "партий") + (st.favorites.ids.length > 1 ? " у каждой" : ""))}
+        ${fact("Больше всего побед", st.champions.ids.map(playerName).join(", ") || "Побед пока нет", st.champions.value ? victories(st.champions.value) + (st.champions.ids.length > 1 ? " у каждого" : "") : "")}
+        ${st.streak.value > 1 ? fact("Лучшая серия", st.streak.ids.map(playerName).join(", "), victories(st.streak.value) + " подряд") : ""}
+        ${fact("Впервые сыграли", count(st.debuts.length, "новая игра", "новые игры", "новых игр"), st.debuts.map(gameName).join(", "))}
+        ${fact("Самый долгий вечер", st.longest.value ? st.longest.ids.map(BH.fmtDate).join(", ") : "Время не записано", st.longest.value ? BH.fmtDuration(st.longest.value) + " по записям партий" : "")}
+      </section>`;
+  }
   function viewStats() {
     const fin = S().sessions.filter(s => s.status === "finished" && (!statsGame || s.gameId === statsGame));
     const hours = fin.reduce((a, s) => a + (s.finishedAt && s.startedAt ? s.finishedAt - s.startedAt : 0), 0);
@@ -1589,7 +1617,7 @@
         <div class="kpi"><b>${(hours / 3600000).toFixed(1).replace(".", ",")} ч</b><span>за столом</span></div>
         <div class="kpi"><b>${fin.reduce((a, s) => a + s.rounds.length, 0)}</b><span>раундов</span></div>
       </div>`;
-    const tabs = fin.length ? [
+    const tabs = [
       { id: "players", label: "Игроки", n: ppl.length, html: `<section class="panel"><div class="scroll-x"><table class="tbl">
         <thead><tr><th>Игрок</th><th>Партий</th><th>Побед</th><th>% побед</th>${statsGame ? "<th>Лучший счёт</th>" : ""}</tr></thead>
         <tbody>${ppl.map(x => `<tr><td><span class="row">${BH.avatar(x.p, "sm")}${esc(x.p.name)}</span></td><td>${x.played}</td><td>${x.wins}</td><td>${Math.round(100 * x.rate)}%<span class="meter"><i style="width:${Math.round(100 * x.rate)}%"></i></span></td>${statsGame ? `<td>${x.best}</td>` : ""}</tr>`).join("")}</tbody></table></div></section>` },
@@ -1597,11 +1625,12 @@
         <tbody>${byGame.map(x => `<tr><td>${esc(x.g.name)}</td><td>${x.n}</td><td>${x.last ? BH.fmtDate(x.last) : ""}</td></tr>`).join("")}</tbody></table></section>` },
       { id: "places", label: "Места", n: byPlace.length, html: `<section class="panel"><table class="tbl"><thead><tr><th>Место</th><th>Партий</th></tr></thead>
         <tbody>${byPlace.map(x => `<tr><td>${esc(x.p.name)}</td><td>${x.n}</td></tr>`).join("")}</tbody></table></section>` },
-    ] : [];
-    const cur = tabs.length ? pickTab(tabs, statsTab) : null;
+      { id: "year", label: "Итоги года" },
+    ];
+    const cur = pickTab(tabs, statsTab);
     return tabScreen({ back: backSmartTo("#/menu", "Меню"), pic: `<span class="phead-ic">${IC.chart}</span>`, title: "Статистика", sub: "По завершённым партиям",
-      tabs: cur ? tabBar("stats-tab", cur.id, tabs, "Разделы статистики") : "",
-      body: top + (cur ? cur.html : `<div class="empty">Здесь появятся победы, любимые игры и места, когда вы доиграете первую партию.</div>`) });
+      tabs: tabBar("stats-tab", cur.id, tabs, "Разделы статистики"),
+      body: cur.id === "year" ? yearReviewHTML() : top + (fin.length ? cur.html : `<div class="empty">Здесь появятся победы, любимые игры и места, когда вы доиграете первую партию.</div>`) });
   }
 
   /* ---------- settings ---------- */
@@ -2655,6 +2684,7 @@
   document.addEventListener("change", e => {
     const el = e.target;
     const r = route(), s = r.a === "s" ? BH.session(r.b) : null;
+    if (el.dataset.act === "stats-year") { reviewYear = Number(el.value); render(); refocus('[data-act="stats-year"]'); }
     if (el.dataset.act === "stats-game") { statsGame = el.value; render(); }
     if (el.dataset.act === "pl-period") { plcard.period = el.value; render(); refocus('[data-act="pl-period"]'); }
     if (el.dataset.act === "gc-period") { gcard.period = el.value; render(); refocus('[data-act="gc-period"]'); }
@@ -2868,7 +2898,7 @@
   window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", applyTheme);
 
   /* ---------- start ---------- */
-  BH.version = "0.31.0";
+  BH.version = "0.32.0";
   applyTheme();
   // reloaded while a sheet was open: step off its history entry; a fresh start has nothing before it
   if (history.state && history.state.ov) history.back();

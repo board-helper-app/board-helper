@@ -17,6 +17,32 @@ const t = (name, fn) => { try { fn(); passed++; } catch (e) { console.error("FAI
 const sel = (num, mult, mod, bust) => ({ picks: { num: num || [], mult: mult || [], mod: mod || [] }, flags: bust ? { bust: true } : {} });
 const score = s => BH.calcScore(g, s, { players: 4 }).score;
 
+t("annual highlights use local dates and complete history", () => {
+  const day = (year, month, date, hour) => new Date(year, month - 1, date, hour).getTime();
+  const play = (gameId, when, players, winners, mins = 0) => ({
+    gameId, created: when, startedAt: mins ? when : 0, finishedAt: when + mins * 60000,
+    players, winners, status: "finished"
+  });
+  const sessions = [
+    play("flip7", day(2025, 12, 31, 23), ["a"], ["a"], 90),
+    play("flip7", day(2026, 1, 1, 18), ["a", "b"], ["a", "b"], 40),
+    play("dobble", day(2026, 1, 1, 20), ["c"], ["c"], 30),
+    play("flip7", day(2026, 2, 1, 18), ["a", "b"], ["a"]),
+    { ...play("dobble", day(2026, 2, 2, 18), ["b"], ["b"]), created: 0 },
+    { ...play("ribbit", day(2026, 3, 1, 18), ["b"], ["b"]), status: "playing" }
+  ];
+  const st = BH.yearReview(sessions.reverse(), 2026);
+  assert.strictEqual(st.plays, 4);
+  assert.strictEqual(st.evenings, 3);
+  assert.deepStrictEqual([...st.debuts], ["dobble"]);
+  assert.deepStrictEqual([...st.favorites.ids].sort(), ["dobble", "flip7"]);
+  assert.deepStrictEqual([...st.champions.ids].sort(), ["a", "b"]);
+  assert.deepStrictEqual([...st.streak.ids], ["a"]);
+  assert.strictEqual(st.streak.value, 2);
+  assert.strictEqual(st.longest.value, 70 * 60000);
+  assert.strictEqual(BH.yearReview(sessions, 2024).plays, 0);
+});
+
 t("numbers add up", () => assert.strictEqual(score(sel([3, 5, 12])), 20));
 t("x2 doubles only the numbers", () => assert.strictEqual(score(sel([3, 5], ["x2"], [10])), 26));
 t("modifiers alone score", () => assert.strictEqual(score(sel([], [], [4, 6])), 10));
@@ -1140,6 +1166,13 @@ console.log(`${passed} passed${process.exitCode ? ", some FAILED" : ""}`);
     assert.strictEqual(stored.race.how, "goal");
     assert.deepStrictEqual(Array.from(stored.winners), ["b"]);
     assert.ok(!BH.hasScore(stored, "b"));
+  });
+  t("ribbit: the start is the exception to stacking; drawing refers to page two", () => {
+    assert.match(G.rounds.reminder.join(" "), /Старт — исключение/);
+    const draw = G.rules.find(rule => rule.id === "draw");
+    assert.strictEqual(draw.page, 2);
+    assert.match(draw.body, /доберите одну карту/);
+    assert.ok(G.faq.some(question => question.ref === draw.id && question.q.includes("колода")));
   });
   console.log(`ribbit: ${passed - before} passed${process.exitCode ? ", some FAILED" : ""}`);
 }
