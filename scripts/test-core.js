@@ -854,7 +854,7 @@ console.log(`${passed} passed${process.exitCode ? ", some FAILED" : ""}`);
     for (const f of G.faq) { assert.ok(ids.has(f.ref), "faq ref " + f.ref); if (f.src) assert.ok(BH.FAQ_SRC[f.src], "faq src " + f.src); }
     assert.ok(G.rules.every(r => [1, 5, 6, 7].includes(r.page)));
     const grouped = G.ruleGroups.flatMap(gr => gr.ids); for (const id of ids) assert.strictEqual(grouped.filter(x => x === id).length, 1, "rule in one group: " + id);
-    for (const k of Object.keys(G.images.rules)) assert.ok(ids.has(k), "image for " + k);
+    for (const id of ["goal", "foods", "setup", "search", "feed", "after", "end", "cockatoo"]) assert.ok(G.rules.find(r => r.id === id).art.includes("games/zoo-art/"), "illustration for " + id);
   });
   console.log(`zoo: ${passed - before} passed${process.exitCode ? ", some FAILED" : ""}`);
 }

@@ -1,11 +1,12 @@
 // Offline cache for the phone version: the app's own files only.
 // Service workers run only over HTTPS (or on localhost), so offline mode needs the app hosted on HTTPS.
-const CACHE = "nastolki-v79";
+const CACHE = "nastolki-v80";
 const FONTS = ["onest-cyrillic-400", "onest-latin-400", "onest-cyrillic-500", "onest-latin-500", "onest-cyrillic-600", "onest-latin-600",
   "onest-cyrillic-700", "onest-latin-700", "unbounded-cyrillic-600", "unbounded-latin-600", "unbounded-cyrillic-700", "unbounded-latin-700"]
   .map(f => `fonts/${f}-normal.woff2`);
 const SHELL = ["./", "index.html", "styles.css", "manifest.webmanifest", "fonts/fonts.css", ...FONTS,
   "js/util.js", "js/sync.js", "js/store.js", "js/cloud.js", "js/voice.js", "js/assets.js", "js/games.js", "js/chances.js", "js/art.js", "js/speech.js", "js/wheel.js", "js/rules.js", "js/app.js",
+  ...["foods","tiles","table","goal","feed","miss","after","cockatoo","cover"].map(name => `games/zoo-art/${name}.webp`),
   ...["bag","bag-gold-only","goal-5","goal-4","success","bust","black","emerald","ruby","stones","stone-gold","stone-white","stone-gray","stone-black","stone-ruby","stone-emerald","cover"].map(name => `games/goldfever-art/${name}.webp`),
   ...["cover","kit","cups2","cups3","cups4","pyramid","shot","cards","mc-again","mc-freeze","mc-blind","mc-wind","mc-aim","mc-far"].map(name => `games/coconuts-art/${name}.webp`),
   ...["board","teams","solo-8","solo-12","shot","hit","line","goal","round-points"].map(name => `games/crokinole-art/${name}.webp`),
