@@ -1075,7 +1075,7 @@
     const reminder = typeof g.rounds.reminder === "function" ? g.rounds.reminder(ctx) : g.rounds.reminder;
     const turn = `${BH.player(s.first) ? `<div class="status-row" style="grid-template-columns:minmax(0,1fr)"><div class="stat-tile leader">${BH.avatar(BH.player(s.first))}<div class="leader-t"><span class="label">Начинает</span><b>${esc(BH.player(s.first).name)}</b></div></div></div>` : ""}
       ${chanceRow(s, g)}
-      <section class="panel"><div class="sec-h"><h2>${esc(g.rounds.title || "Как идёт ход")}</h2></div><div class="reminder">${stepsHTML(reminder, g.id)}</div></section>
+      <section class="panel"><div class="sec-h"><h2>${esc(g.rounds.title || "Как идёт ход")}</h2></div>${g.rounds.art || ""}<div class="reminder">${stepsHTML(reminder, g.id)}</div></section>
       <section class="panel"><div class="sec-h"><h2>Конец игры</h2></div>${stepsHTML(sc.end(goal), g.id)}</section>`;
     return playShell(s, g, [
       { id: "turn", label: g.rounds.tab || "Ход", html: turn },
@@ -2900,7 +2900,7 @@
   window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", applyTheme);
 
   /* ---------- start ---------- */
-  BH.version = "0.32.2";
+  BH.version = "0.32.3";
   applyTheme();
   // reloaded while a sheet was open: step off its history entry; a fresh start has nothing before it
   if (history.state && history.state.ov) history.back();

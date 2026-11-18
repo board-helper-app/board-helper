@@ -733,7 +733,7 @@ console.log(`${passed} passed${process.exitCode ? ", some FAILED" : ""}`);
     assert.deepStrictEqual([...C.cards.map(k => k.name)], ["Ещё 1 попытка", "Замри!", "Выстрел вслепую", "Призыв ветра", "В яблочко!", "Дальний выстрел"]);
     assert.ok(C.cards.every(k => /перед своим выстрелом|перед выстрелом другого/.test(k.when)));
     assert.strictEqual(C.cards.filter(k => k.when === "перед своим выстрелом").length, 1, "only «Ещё 1 попытка» is your own");
-    assert.ok(C.cards.every(k => C.images.icons.includes(k.img)), "each card has its picture");
+    assert.ok(C.cards.every(k => k.art.includes("games/coconuts-art/mc-" + k.id + ".webp")), "each card has its picture");
   });
   t("coconuts: how a race ended is kept; nonsense dropped", () => {
     BH.replaceFromSync({ players: [{ id: "a", name: "А" }, { id: "b", name: "Б" }], places: [], placesTouched: true,
