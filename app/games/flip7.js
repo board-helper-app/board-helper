@@ -3,10 +3,15 @@
    «Заморозь!», «Переверни три!», «Вторая попытка!», бонус «Подкидной 7». page = printed page in that book. */
 (function () {
   "use strict";
-  const BH = window.BH, A = BH.art;
+  const BH = window.BH;
 
   // Approved tutorial plates; card faces and cover come from the original rulebook.
   const plates = {
+    "shuffle": [754,500,"Тщательно перемешайте всю колоду."],
+    "table": [754,500,"Положите колоду рубашкой вверх. Рядом оставьте свободное место для сброса."],
+    "goal": [754,500,"Цель — 200 очков. Доиграйте раунд до конца. Побеждает игрок с наибольшей суммой."],
+    "challenge": [754,500,"Вызов для одного или двух игроков: набрать 200 очков меньше чем за пять раундов."],
+    "second-deck": [768,512,"Если игроков больше восемнадцати, возьмите две колоды."],
   "deck": [
     754,
     510,
@@ -68,18 +73,12 @@
 
   const art = {
     deck: () => picture("deck", true),
-    shuffle: () => A.svg(A.defs() +
-      A.deck(110, 80, 6) + A.card({ back: true, x: 170, y: 64, rot: 14 }) +
-      `<path d="M92 70 C60 100 70 150 110 168" style="fill:none;stroke:var(--accent);stroke-width:3;stroke-linecap:round" marker-end="url(#ah)"/>` +
-      `<path d="M238 160 C268 128 258 82 224 64" style="fill:none;stroke:var(--accent);stroke-width:3;stroke-linecap:round" marker-end="url(#ah)"/>` +
-      A.label(160, 214, "перетасовать как следует")),
-    secondDeck: () => A.svg(A.deck(84, 84, 6) + `<text x="160" y="128" text-anchor="middle" style="font-family:var(--f-display);font-weight:700;font-size:28px;fill:var(--accent)">+</text>` + A.deck(196, 84, 6, { backColor: "#5B3A6E" }) + A.label(160, 214, "две колоды для 19+ игроков")),
-    table: () => A.svg(A.table() + A.deck(96, 82, 6) + A.label(126, 186, "колода") + A.dashedSlot(176, 74) + A.label(204, 186, "сброс")),
+    secondDeck: () => picture("second-deck", true),
+    shuffle: () => picture("shuffle", true),
+    table: () => picture("table", true),
     space: () => picture("line", true),
-    goal: () => A.svg(`<text x="160" y="132" text-anchor="middle" style="font-family:var(--f-display);font-weight:700;font-size:72px;fill:var(--accent)">200</text>` + A.label(160, 172, "очков — и игра заканчивается в конце раунда")),
-    challenge: () => A.svg(`<text x="160" y="104" text-anchor="middle" style="font-family:var(--f-display);font-weight:700;font-size:56px;fill:var(--accent)">200</text>` +
-      `<text x="160" y="146" text-anchor="middle" style="font-family:var(--f-display);font-weight:600;font-size:19px;fill:var(--ink)">меньше чем</text>` +
-      `<text x="160" y="172" text-anchor="middle" style="font-family:var(--f-display);font-weight:600;font-size:19px;fill:var(--ink)">за 5 раундов</text>`),
+    goal: () => picture("goal", true),
+    challenge: () => picture("challenge", true),
   };
 
   // Original card faces are bundled for the cards tab and its detail dialogs.
