@@ -125,6 +125,8 @@
         })(),
         final: (() => { if (!isObj(x.final)) return undefined; const f = {}; for (const id of pl) if (x.final[id] !== undefined && x.final[id] !== null && x.final[id] !== "") f[id] = num(x.final[id]); return Object.keys(f).length ? f : undefined; })(),
         continueTie: Number.isInteger(x.continueTie) && x.continueTie > 0 ? x.continueTie : undefined,
+        // a game of one mini-game (Dobble): which one, an id of the game's tiles; the cards of each are in final
+        ...(typeof x.mini === "string" && ID.test(x.mini) ? { mini: x.mini } : {}),
       });
     }
     // answers of the voice assistant, kept so the same question costs nothing again (synced too)

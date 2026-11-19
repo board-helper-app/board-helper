@@ -129,6 +129,16 @@
           const fm = document.querySelector('[data-act="finish-menu"]'); if (fm) { fm.click(); await wait(300); out.push(...scan(`${s.id} [завершить]`)); await closeOverlay(); }
           continue;
         }
+        // one mini-game (Dobble): the result sheet with every count equal (a tie: who won the duel) — looked at only, nothing is saved
+        if (document.querySelector('[data-act="one-open"]')) {
+          document.querySelector('[data-act="one-open"]').click(); await wait(300);
+          const mini = document.querySelector('.overlay [data-act="one-mini"]'); if (mini) { mini.click(); await wait(300); }
+          for (const inp of document.querySelectorAll('.overlay [data-act="one-count"]')) { inp.value = "12"; inp.dispatchEvent(new Event("input", { bubbles: true })); }
+          await wait(200); out.push(...scan(`${s.id} [итог мини-игры, поровну]`));
+          await closeOverlay();
+          const fm = document.querySelector('[data-act="finish-menu"]'); if (fm) { fm.click(); await wait(300); out.push(...scan(`${s.id} [завершить]`)); await closeOverlay(); }
+          continue;
+        }
         // a race (Coconuts): the end dialog, then the count of coconuts with a tie — looked at only, nothing is saved
         if (BH.isRace && BH.isRace(BH.game(s.gameId))) {
           const ct = document.querySelector('[data-act="play-tab"][data-tab="cards"]'); if (ct) { ct.click(); await wait(300); }

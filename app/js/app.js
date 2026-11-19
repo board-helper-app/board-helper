@@ -312,7 +312,7 @@
     let right = "";
     if (s.status === "setup") right = '<span class="badge warn">подготовка</span>';
     else if (s.status === "first") right = '<span class="badge warn">кто начинает</span>';
-    else if (s.status === "playing") { const eg = BH.game(s.gameId), last = BH.isEndScored(eg) && eg.rounds.count; right = `<span class="badge accent">${BH.isRace(eg) ? "идёт игра" : last && s.rounds.length >= last ? "подсчёт славы" : (BH.isCoop(eg) ? "ограбление " : BH.roundW(eg).lc + " ") + (s.rounds.length + 1)}</span>`; }
+    else if (s.status === "playing") { const eg = BH.game(s.gameId), last = BH.isEndScored(eg) && eg.rounds.count; right = `<span class="badge accent">${BH.isRace(eg) || BH.isOne(eg, BH.ctxOf(s)) ? "идёт игра" : last && s.rounds.length >= last ? "подсчёт славы" : (BH.isCoop(eg) ? "ограбление " : BH.roundW(eg).lc + " ") + (s.rounds.length + 1)}</span>`; }
     return `<a class="item sline" href="#/s/${s.id}">
       ${coverOf(g, "mini")}
       <div class="t"><b>${esc(g ? g.name : s.gameId)}</b>${meta([[IC.cal, rowDate(s.created), BH.fmtDate(s.created)], place && !(o && o.noPlace) && [IC.pin, esc(place.name), place.name]], "plain")}</div>
@@ -502,7 +502,7 @@
   function pickDraftGame(id) {
     if (draft.gameId !== id) {
       const last = lastSessionFor(id);
-      draft.gameId = id; draft.opts = {};
+      draft.gameId = id; draft.opts = {}; draft.mini = null; draft.oneCounts = {};
       draft.exp = last && last.gameId === id ? last.exp.slice() : [];
       if (!draft.editId) draft.lastPlayers = visiblePlayers(last ? last.players : []);
     }
@@ -624,6 +624,19 @@
           <input class="input score-in ph-word" type="number" inputmode="numeric" data-act="draft-final-pair" data-p="${sd.join(",")}" value="${draft.final[sd[0]] ?? ""}" placeholder="очки" aria-label="Очки: ${esc(nm(sd))}"></div>`).join("")}
         <div class="label" style="margin:12px 0 6px">Победители</div>
         <div class="chips">${pairs.map(sd => `<button class="chip" data-act="draft-winner-pair" data-p="${sd.join(",")}" aria-pressed="${sd.every(id => draft.winners.includes(id))}">${esc(nm(sd))}</button>`).join("")}</div>`, !!wonPair || draft.final[pairs[0][0]] !== undefined);
+    } else if (past && g && cnt && g.scoring && g.scoring.one) {
+      // one mini-game (the cards of each, the winner by its goal), or several (who won the game)
+      const O = g.scoring.one, k = BH.miniOf(g, draft.mini), many = draft.mini === "many", wn = draft.winners.filter(id => draft.players.includes(id));
+      const chip = (v, label) => `<button type="button" class="chip" data-act="draft-one-mini" data-v="${esc(v)}" aria-pressed="${draft.mini === v}">${esc(label)}</button>`;
+      resultSec = step2("result", "Итог", k ? "«" + esc(k.name) + "»" + (wn.length ? ": " + esc(wn.map(pname).join(", ")) : "") : wn.length ? "Победа: " + esc(wn.map(pname).join(", ")) : "Мини-игра и победитель — по желанию",
+        `<p class="small muted">${esc(O.what)}</p>
+        <div class="chips" style="margin-top:8px">${BH.raceCards(g, { opts: {}, players: draft.players, exp: [] }).map(x => chip(x.id, x.name.replace(/­/g, ""))).join("")}${chip("many", "Несколько мини-игр")}</div>
+        ${k ? `<p class="small muted" style="margin:12px 0 6px">${esc(k.count)} Побеждает тот, у кого ${k.goal === "fewest" ? "меньше" : "больше"} всех.</p>
+          ${draft.players.map(id => { const p = BH.player(id) || { name: "?", color: "#888" }; return `<div class="race-row">${BH.avatar(p, "sm")}<span class="race-nm">${esc(p.name)}</span>
+            <input class="input score-in" type="number" inputmode="numeric" min="0" max="55" data-act="draft-one-count" data-p="${esc(id)}" value="${(draft.oneCounts || {})[id] ?? ""}" placeholder="—" aria-label="${esc(O.unit[2] + ": " + p.name)}"></div>`; }).join("")}
+          <div id="one-draft-res">${oneDraftResHTML(g)}</div>`
+        : `<div class="label" style="margin:12px 0 6px">${many ? "Кто выиграл больше всех мини-игр?" : "Победитель"}</div><div class="chips">${draft.players.map(id => `<button class="chip" data-act="draft-winner" data-id="${id}" aria-pressed="${wn.includes(id)}">${esc(pname(id))}</button>`).join("")}</div>`}`,
+        !!k || wn.length > 0);
     } else if (past && g && cnt) {
       const scored = draft.players.filter(id => draft.final[id] !== undefined && draft.final[id] !== "").length;
       resultSec = step2("result", "Итог", draft.winners.length ? "Победа: " + esc(draft.winners.map(id => (BH.player(id) || { name: "?" }).name).join(", ")) : scored ? "Очки вписаны" : "Очки и победитель — по желанию",
@@ -676,7 +689,15 @@
         if (Object.keys(counts).length) { const top = BH.raceResult(s.players, counts).top; winners = top.length === 1 ? top : winners.filter(id => top.includes(id)).slice(0, 1); if (!winners.length) winners = top; }
         if (how) s.race = Object.keys(counts).length ? { how, counts } : { how };
       }
-      if (!BH.isCoop(g) && !winners.length && Object.keys(final).length) {
+      const oneK = g.scoring && g.scoring.one && BH.miniOf(g, draft.mini);
+      if (oneK) {
+        s.mini = oneK.id;
+        const all = s.players.every(id => Number.isInteger((draft.oneCounts || {})[id]));
+        for (const id of s.players) { delete final[id]; if (all) final[id] = draft.oneCounts[id]; }
+        const r = BH.oneResult(g, oneK.id, s.players, draft.oneCounts || {});
+        if (r.top.length) { const marked = r.top.filter(id => draft.winners.includes(id)).slice(0, 1); winners = r.top.length === 1 ? r.top : marked.length ? marked : r.top; }
+      }
+      if (!BH.isCoop(g) && !oneK && !winners.length && Object.keys(final).length) {
         const low = !!(g.scoring && g.scoring.lowerWins);
         const best = low ? Math.min(...Object.values(final)) : Math.max(...Object.values(final));
         winners = s.players.filter(id => final[id] === best);
@@ -1123,6 +1144,7 @@
     if (BH.isEndScored(g)) return viewPlayEnd(s, g);
     if (BH.isCoop(g)) return viewPlayCoop(s, g);
     if (BH.isRace(g)) return viewPlayRace(s, g);
+    if (BH.isOne(g, BH.ctxOf(s))) return viewPlayOne(s, g);
     // nobody leads a round in a game where everyone plays at once (Dobble): no «Начинает» tile
     const r = s.rounds.length, leaderId = BH.leaderAt(s, r), leader = g.rounds.leader === false ? null : BH.player(leaderId);
     const ctx = BH.ctxOf(s), tot = BH.totals(s), st = BH.standings(s), target = BH.targetOf(g, ctx), count = BH.roundsOf(g, ctx);
@@ -1165,6 +1187,21 @@
         ${askBtn()}
         <button class="btn primary big" data-act="new-round" aria-label="Записать ${W.acc} ${r + 1}">${I.plus}<span class="ell"><span class="lbl-l">${W.rec}</span><span class="lbl-s">${W.one}</span> ${r + 1}</span></button>
         ${s.rounds.length ? `<button class="btn big" data-act="undo-round" aria-label="Отменить ${W.last}" title="Отменить ${W.last}">${I.undo}</button>` : ""}
+      </div>`);
+  }
+
+  /* a game of one mini-game (Dobble): the mini-games first (choose one, read its setup), how to play, the rules;
+     at the bottom — the result: which mini-game, how many cards each has */
+  function viewPlayOne(s, g) {
+    const how = g.rounds.reminder ? `<section class="panel"><div class="sec-h"><h2>${esc(g.rounds.title || "Как играть")}</h2></div><div class="reminder">${stepsHTML(g.rounds.reminder, g.id)}${afterHTML(afterOf(g, BH.ctxOf(s), 1, 1), g.id)}</div></section>` : "";
+    const cardsHtml = cardsPanel(s, g);
+    return playShell(s, g, [
+      cardsHtml && { id: "cards", label: g.cardsTab || "Карты", html: cardsHtml },
+      { id: "how", label: g.rounds.title || "Как играть", html: how },
+      rulesTab(s, g),
+    ], `<div class="game-bar">
+        ${askBtn()}
+        <button class="btn primary big" data-act="one-open">${I.check}<span class="ell">Записать итог</span></button>
       </div>`);
   }
 
@@ -1219,7 +1256,9 @@
       : w.length > 1 ? "Ничья: " + esc(w.map(p => p.name).join(" и ")) : w.length ? "Победа: " + esc(w[0].name) : "Партия окончена";
     const hasBust = !!(g.calc && g.calc.flags && g.calc.flags.some(f => f.id === "bust"));
     const fn = g.finishNote && g.finishNote(s), note = fn ? (typeof fn === "string" ? { text: fn, ok: true } : fn) : null;
-    const more = (s.rounds.length || s.finalDetail ? "" : `<p class="win-s">Записана после игры, без ${BH.roundW(g).gen}</p>`) +
+    const mk = s.mini && BH.miniOf(g, s.mini);
+    const more = (mk ? `<p class="win-s">«${esc(mk.name)}» — цель: ${esc(mk.tag)}</p>`
+      : s.rounds.length || s.finalDetail ? "" : `<p class="win-s">Записана после игры, без ${BH.roundW(g).gen}</p>`) +
       (note ? `<p class="note podium-note ${note.ok ? "good" : ""}">${note.ok ? I.check : IC.bolt}<span>${esc(note.text)}</span></p>` : "");
     const places = `<section class="panel"><h2 style="margin-bottom:6px">Итог</h2>
         <div class="list">${team ? (() => { const tt = BH.totals(s); return [...BH.sidesOf(s)].sort((a, b) => tt[b[0]] - tt[a[0]]).map((sd, i, arr) => `<div class="item"><span class="place-n">${i && tt[sd[0]] === tt[arr[i - 1][0]] ? 1 : i + 1}</span><span class="faces pair-faces">${sd.map(id => BH.avatar(BH.player(id) || { name: "?", color: "#888" }, "sm")).join("")}</span><div class="t"><b>${esc(sideName(sd))}</b></div>${sd.some(id => s.winners.includes(id)) ? `<span class="won">${IC.trophy}</span>` : ""}<span class="num" style="font-size:20px;font-weight:700">${tt[sd[0]]}</span></div>`).join(""); })()
@@ -1251,7 +1290,7 @@
       pad && { id: "pad", label: "Подсчёт", html: pad },
       !BH.isEndScored(g) && s.rounds.length && { id: "rounds", label: BH.roundW(g).tab, n: BH.isPick(g) ? 0 : s.rounds.length, html: `<section class="panel"><h2 style="margin-bottom:6px">${BH.roundW(g).tab}</h2>${BH.isPick(g) ? pickHistory(s, g, false) : roundsTable(s, g, false)}</section>` },
       byPlayers && { id: "players", label: "По игрокам", html: byPlayers },
-    ], !!(s.rounds.length || s.finalDetail));
+    ], !!(s.rounds.length || s.finalDetail || (s.mini && durOf(s))));
   }
 
   /* ---------- games catalogue ---------- */
@@ -1355,6 +1394,8 @@
         <h2 style="margin-bottom:6px">Рекорды</h2>
         ${factsList([
           line(BH.isPick(g) ? "Больше всех побед за партию" : "Лучший счёт", best && (best.v || lowerWins(g)) ? two(best.v, `${name(best.id)}, ${BH.fmtDate(best.at)}`) : ""),
+          ...(st.minis || []).map(m => { const k = BH.miniOf(g, m.mini), O = g.scoring.one;
+            return line(`«${esc(k.name)}», ${k.goal === "fewest" ? "меньше" : "больше"} всех ${esc(O.unit[2])}`, two(m.v, `${name(m.id)}, ${BH.fmtDate(m.at)}`)); }),
           line("Чаще всех побеждает", top && top.wins ? two(name(top.id), top.wins + " " + BH.plural(top.wins, "победа", "победы", "побед")) : ""),
           line("Лучший раунд", bestR ? two(bestR.v, name(bestR.id)) : ""),
           line(BH.isPick(g) ? "Мини-игр у победителя в среднем" : "Средний счёт победителя", st.avgWin || (st.avgWin === 0 && lowerWins(g)) ? String(st.avgWin).replace(".", ",") : ""),
@@ -1363,7 +1404,7 @@
           datesLine(st.first, st.last),
         ], gcard.allRec, "gc-rec")}
       </section>
-      <section class="panel"><h2 style="margin-bottom:8px">Игроки</h2>${st.players.length > 1 ? prSortBar("game", gcard.psort || "wins", ["wins", "rate", "best"]) : ""}<div class="list">${playersRateList(sortPlayers(st.players, gcard.psort || "wins", lowerWins(g)).slice(0, gcard.allPl ? undefined : 3), true)}</div>${st.players.length > 3 ? `<button type="button" class="btn ghost sm block more-btn" data-act="gc-all">${gcard.allPl ? "Свернуть" : "Показать всех · " + st.players.length}</button>` : ""}<p class="tiny muted" style="margin-top:6px">${BH.isPick(g) ? "Справа — больше всего побед в мини-играх за партию и в среднем." : "Справа — лучший и средний счёт."}</p></section>`;
+      <section class="panel"><h2 style="margin-bottom:8px">Игроки</h2>${st.players.length > 1 ? prSortBar("game", gcard.psort || "wins", ["wins", "rate", "best"]) : ""}<div class="list">${playersRateList(sortPlayers(st.players, gcard.psort || "wins", lowerWins(g)).slice(0, gcard.allPl ? undefined : 3), true)}</div>${st.players.length > 3 ? `<button type="button" class="btn ghost sm block more-btn" data-act="gc-all">${gcard.allPl ? "Свернуть" : "Показать всех · " + st.players.length}</button>` : ""}<p class="tiny muted" style="margin-top:6px">${BH.isPick(g) ? (st.withRounds ? "Справа — больше всего побед в мини-играх за партию и в среднем." : "Карточки разных мини-игр не сравниваются: рекорды каждой мини-игры — выше.") : "Справа — лучший и средний счёт."}</p></section>`;
   }
 
   /* ---------- players & places ---------- */
@@ -1694,6 +1735,7 @@
     if (BH.isRace(g)) return `идёт игра, игроков ${s.players.length}`;
     if (BH.isEndScored(g)) { const last = g.rounds.count || 8; return `раунд ${Math.min(s.rounds.length + 1, last)} из ${last}, игроков ${s.players.length}, слава считается в конце`; }
     const tot = Object.values(BH.totals(s)), best = tot.length ? Math.max(...tot) : 0;
+    if (BH.isOne(g, BH.ctxOf(s))) return `одна мини-игра, игроков ${s.players.length}`;
     return BH.isPick(g) ? `мини-игра ${s.rounds.length + 1}, игроков ${s.players.length}, больше всех побед ${best}` : `раунд ${s.rounds.length + 1}, игроков ${s.players.length}, лучший счёт ${best}`;
   }
   function openAsk(gameId, sid) {
@@ -2154,6 +2196,16 @@
   }
   // what the numbers typed for a game played before say: who wins by them (a marked winner overrides it)
   // the coconuts of a game played before: who has the most; equal — the chips to mark who of them played last
+  function oneDraftResHTML(g) {
+    const O = g.scoring.one, k = BH.miniOf(g, draft.mini), counts = draft.oneCounts || {}, r = BH.oneResult(g, draft.mini, draft.players, counts);
+    const chips = ids => `<div class="chips">${ids.map(id => `<button class="chip" data-act="draft-one-win" data-id="${id}" aria-pressed="${draft.winners.includes(id)}">${esc(pname(id))}</button>`).join("")}</div>`;
+    if (!k) return "";
+    if (!r.top.length) return `<div class="label" style="margin:12px 0 6px">Впишите число у каждого — или отметьте победителя</div>${chips(draft.players)}`;
+    if (r.top.length === 1) return `<p class="small race-auto">${k.goal === "fewest" ? "Меньше всех" : "Больше всех"} ${O.unit[2]}: ${esc(pname(r.top[0]))} — ${r.best}. Это победа.</p>`;
+    return `<p class="small race-auto">Поровну — ${r.best} ${BH.plural(r.best, ...O.unit)}: ${esc(r.top.slice(0, -1).map(pname).join(", ") + " и " + pname(r.top[r.top.length - 1]))}.</p>
+      <div class="label" style="margin:12px 0 6px">${esc(k.tieAsk || (r.top.length === 2 ? O.duel : O.potato))}</div>${chips(r.top)}
+      <p class="small muted" style="margin-top:8px">Не отметите — запишется ничья.</p>`;
+  }
   function raceDraftResHTML(g) {
     const counts = draft.raceCounts || {}, typed = draft.players.some(id => counts[id] !== undefined && counts[id] !== "");
     if (!typed) return "";
@@ -2201,7 +2253,57 @@
     afterRoundChange(s, isNew);
   }
 
+  /* the result of a game of one mini-game: which one, the cards of each; the winner follows its goal (the most or the
+     fewest cards), equal ones — who won the duel. After «Вернуться к партии» the sheet opens with the mini-game and the
+     cards written before (who won a duel is asked again: going back clears the winners) */
+  function openOneSheet(s) {
+    const counts = {};
+    if (s.mini && s.final) for (const id of s.players) if (Number.isInteger(s.final[id])) counts[id] = s.final[id];
+    sheet = { kind: "one", sid: s.id, mini: s.mini || null, counts, win: s.mini ? s.winners[0] || null : null };
+    BH.clearToast(); ovOpen(); renderOverlay();
+  }
+  const oneState = () => {
+    const s = BH.session(sheet.sid), g = BH.game(s.gameId), r = BH.oneResult(g, sheet.mini, s.players, sheet.counts);
+    return Object.assign(r, { s, g, k: BH.miniOf(g, sheet.mini), winner: r.top.length === 1 ? r.top[0] : r.top.includes(sheet.win) ? sheet.win : null });
+  };
+  function oneResHTML() {
+    const st = oneState(), O = st.g.scoring.one, k = st.k;
+    if (!k || !st.top.length) return k ? `<p class="small muted">Впишите число у каждого — приложение определит победителя.</p>` : "";
+    const names = ids => (ids.length > 1 ? ids.slice(0, -1).map(pname).join(", ") + " и " + pname(ids[ids.length - 1]) : ids.map(pname).join(""));
+    const unit = n => BH.plural(n, ...O.unit);
+    if (st.top.length === 1) return `<p class="small race-auto">${k.goal === "fewest" ? "Меньше всех" : "Больше всех"} ${O.unit[2]}: ${esc(pname(st.top[0]))} — ${st.best}. Это победа.</p>`;
+    const ask = k.tieAsk || (st.top.length === 2 ? O.duel : O.potato);
+    return `<p class="small race-auto">Поровну — ${st.best} ${unit(st.best)}: ${esc(names(st.top))}.</p>
+      <div class="label" style="margin:12px 0 6px">${esc(ask)}</div>
+      <div class="chips">${st.top.map(id => `<button type="button" class="chip" data-act="one-win" data-v="${esc(id)}" aria-pressed="${sheet.win === id}">${esc(pname(id))}</button>`).join("")}</div>
+      ${k.tieAsk ? "" : `<p class="small muted" style="margin-top:10px">${esc(O.tieHint)}</p>`}`;
+  }
+  function oneSheetHTML() {
+    const st = oneState(), s = st.s, g = st.g, O = g.scoring.one, k = st.k;
+    return `<div class="overlay" data-act="overlay-bg"><div class="sheet" role="dialog" aria-modal="true" aria-labelledby="sheet-h">
+      <div class="sheet-head"><div class="sheet-t"><h2 id="sheet-h">Итог партии</h2></div><button class="icon-btn" data-act="close-sheet" aria-label="Закрыть">${I.x}</button></div>
+      <div class="sheet-body">
+        <div class="label" style="margin:0 0 6px">${esc(O.what)}</div>
+        <div class="chips">${BH.raceCards(g, s).map(x => `<button type="button" class="chip" data-act="one-mini" data-v="${esc(x.id)}" aria-pressed="${sheet.mini === x.id}">${esc(x.name.replace(/­/g, ""))}</button>`).join("")}</div>
+        ${k ? `<div class="label" style="margin:14px 0 4px">${esc(O.count)}</div><p class="small muted" style="margin-bottom:6px">${esc(k.count)} Побеждает тот, у кого ${k.goal === "fewest" ? "меньше" : "больше"} всех.</p>
+          ${s.players.map(id => { const p = BH.player(id) || { name: "?", color: "#888" }; return `<div class="race-row">${BH.avatar(p, "sm")}<span class="race-nm">${esc(p.name)}</span>
+            <input class="input score-in" type="number" inputmode="numeric" min="0" max="55" data-act="one-count" data-p="${esc(id)}" value="${sheet.counts[id] ?? ""}" placeholder="—" aria-label="${esc(O.unit[2] + ": " + p.name)}"></div>`; }).join("")}` : ""}
+        <div id="one-res">${oneResHTML()}</div>
+      </div>
+      <div class="sheet-foot"><button class="btn primary big" data-act="one-save" ${st.winner ? "" : "disabled"}>${I.check}Записать итог</button></div>
+    </div></div>`;
+  }
+  function saveOne() {
+    const st = oneState(); if (!st.winner) return;
+    const s = st.s;
+    s.mini = sheet.mini;
+    s.final = Object.fromEntries(s.players.map(id => [id, sheet.counts[id]]));
+    sheet = null;
+    finish(s, [st.winner]);
+  }
+
   function sheetHTML() {
+    if (sheet.kind === "one") return oneSheetHTML();
     if (sheet.kind === "pick") return pickSheetHTML();
     if (sheet.kind === "race") return raceSheetHTML();
     if (sheet.kind === "end") return endSheetHTML();
@@ -2366,6 +2468,8 @@
       }
       case "draft-coop": draft.coop = draft.coop === el.dataset.v ? null : el.dataset.v; render(); break;
       // a race has one winner
+      case "draft-one-mini": draft.mini = draft.mini === el.dataset.v ? null : el.dataset.v; draft.winners = []; render(); break;
+      case "draft-one-win": draft.winners = draft.winners.includes(el.dataset.id) ? [] : [el.dataset.id]; render(); break;
       case "draft-race-winner": draft.winners = draft.winners.includes(el.dataset.id) ? [] : [el.dataset.id]; render(); break;
       case "draft-race-how": draft.raceHow = draft.raceHow === el.dataset.v ? null : el.dataset.v; draft.winners = []; draft.raceEnder = null; render(); break;
       // a tie of the count lost by the one who ended the game: the chip is who ended, the winner is the other one
@@ -2520,6 +2624,13 @@
         { label: `Отменить ${word}`, danger: true, run: () => { const c = fresh(s), last = c.rounds.pop(); if (last && last.coop) c.coop = last.coop; BH.saveNow(); dialog = null; afterRoundChange(c, false); } }, { label: "Оставить", run: closeDialog }] }); break; }
       case "finish-menu": {
         if (BH.isRace(BH.game(s.gameId))) { openRaceEnd(s); break; }
+        if (BH.isOne(BH.game(s.gameId), BH.ctxOf(s))) {
+          openDialog({ title: "Завершить партию?", text: `Запишите, какую мини-игру сыграли и сколько ${BH.game(s.gameId).scoring.one.unit[2]} у каждого: победителя приложение определит само.`, buttons: [
+            { label: "Записать итог", primary: true, run: () => { dialog = null; openOneSheet(s); } },
+            { label: "Удалить партию", danger: true, run: () => confirmDelete(s) },
+            { label: "Продолжить игру", run: closeDialog }] });
+          break;
+        }
         if (BH.isCoop(BH.game(s.gameId))) {
           const t = BH.coopTally(s);
           openDialog({ title: "Завершить партию?", text: `Хранилищ ${t.ok} из ${t.wins}, тревог ${t.fail} из ${t.losses}. Если партию прервали досрочно, её можно записать как победу банды или как поражение.`, buttons: [
@@ -2568,6 +2679,10 @@
       case "flag": { const en = sheet.entries[el.dataset.p]; en.sel.flags[el.dataset.f] = !en.sel.flags[el.dataset.f]; if (en.sel.flags.bust) en.manual = null; renderOverlay(); break; }
       case "save-round": saveRound(); break;
       case "pick-mini": sheet.mini = sheet.mini === el.dataset.v ? null : el.dataset.v; renderOverlay(); break;
+      case "one-open": if (s) openOneSheet(s); break;
+      case "one-mini": if (sheet && sheet.kind === "one") { sheet.mini = el.dataset.v; sheet.win = null; renderOverlay(); } break;
+      case "one-win": if (sheet && sheet.kind === "one") { sheet.win = el.dataset.v; renderOverlay(); } break;
+      case "one-save": if (sheet && sheet.kind === "one") saveOne(); break;
       case "pick-win": sheet.win = sheet.win === el.dataset.v ? null : el.dataset.v; renderOverlay(); break;
       case "side-count": {
         const s = BH.session(sheet.sid), g = BH.game(s.gameId), Z = g.sideScore, e = sheet.entries[el.dataset.p], z = el.dataset.z, d = +el.dataset.d;
@@ -2759,10 +2874,28 @@
     }
     // a side's points typed instead of counted: the result line follows, nothing is redrawn (the cursor stays)
     if (el.dataset.act === "draft-final-pair" && draft) { for (const id of el.dataset.p.split(",")) { if (el.value === "") delete draft.final[id]; else draft.final[id] = el.value; } }
+    if (el.dataset.act === "draft-one-count" && draft) {
+      const v = el.value === "" ? NaN : Math.round(Number(el.value));
+      draft.oneCounts = draft.oneCounts || {};
+      if (Number.isInteger(v) && v >= 0 && v <= 55) draft.oneCounts[el.dataset.p] = v; else delete draft.oneCounts[el.dataset.p];
+      const g = BH.game(draft.gameId), r = BH.oneResult(g, draft.mini, draft.players, draft.oneCounts);
+      if (r.top.length) draft.winners = draft.winners.filter(id => r.top.length > 1 && r.top.includes(id));
+      const res = document.getElementById("one-draft-res"); if (res) res.innerHTML = oneDraftResHTML(g);
+      return;
+    }
     if (el.dataset.act === "draft-race-count" && draft) {
       draft.raceCounts = draft.raceCounts || {}; draft.raceCounts[el.dataset.p] = el.value;
       const top = BH.raceResult(draft.players, draft.raceCounts).top; draft.winners = draft.winners.filter(id => top.includes(id));
       const res = document.getElementById("race-draft-res"); if (res) res.innerHTML = raceDraftResHTML(BH.game(draft.gameId));
+      return;
+    }
+    if (el.dataset.act === "one-count" && sheet && sheet.kind === "one") {
+      const v = el.value === "" ? NaN : Math.round(Number(el.value));
+      if (Number.isInteger(v) && v >= 0 && v <= 55) sheet.counts[el.dataset.p] = v; else delete sheet.counts[el.dataset.p];
+      const st = oneState();
+      if (!st.top.includes(sheet.win)) sheet.win = null;
+      const res = overlayRoot.querySelector("#one-res"), btn = overlayRoot.querySelector('[data-act="one-save"]');
+      if (res) res.innerHTML = oneResHTML(); if (btn) btn.disabled = !oneState().winner;
       return;
     }
     if (el.dataset.act === "race-count" && sheet && sheet.kind === "race") {
@@ -2900,7 +3033,7 @@
   window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", applyTheme);
 
   /* ---------- start ---------- */
-  BH.version = "0.32.11";
+  BH.version = "0.33.0";
   applyTheme();
   // reloaded while a sheet was open: step off its history entry; a fresh start has nothing before it
   if (history.state && history.state.ov) history.back();

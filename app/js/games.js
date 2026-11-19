@@ -63,6 +63,22 @@
   BH.roundW = g => Object.assign({}, ROUND_W, (g && g.rounds && g.rounds.word) || {});
   // a round with one winner and nothing to count (Dobble: who won the mini-game) — a point to the winner
   BH.isPick = g => !!(g && g.scoring && g.scoring.pick);
+  /* a game of one mini-game (Dobble with the option «single»): which one was played and how many cards each has; the winner
+     follows the goal of that mini-game. Kept as a finished game with s.mini and the cards in s.final */
+  BH.isOne = (g, ctx) => !!(g && g.scoring && g.scoring.one && ctx && ctx.opt(g.scoring.one.opt));
+  BH.miniOf = (g, id) => ((g && g.cards) || []).find(k => k.id === id) || null;
+  // the fewest wins: the game's rule, or the goal of the mini-game a game of one mini-game was
+  BH.lowerWinsOf = s => {
+    const g = BH.game(s.gameId), k = s.mini && BH.miniOf(g, s.mini);
+    return k ? k.goal === "fewest" : !!(g && g.scoring && g.scoring.lowerWins);
+  };
+  // the result of one mini-game from the cards: the best count and who has it; one of them — the winner
+  BH.oneResult = (g, mini, players, counts) => {
+    const k = BH.miniOf(g, mini), filled = players.filter(id => Number.isInteger(counts[id]));
+    if (!k || filled.length < players.length) return { filled: filled.length, top: [], best: null };
+    const best = k.goal === "fewest" ? Math.min(...players.map(id => counts[id])) : Math.max(...players.map(id => counts[id]));
+    return { filled: filled.length, best, top: players.filter(id => counts[id] === best) };
+  };
   BH.targetOf = (g, ctx) => { const t = g && g.scoring && g.scoring.target; return typeof t === "function" ? t(ctx) : t || null; };
   BH.roundsOf = (g, ctx) => { const n = g && g.scoring && g.scoring.roundsCount; return typeof n === "function" ? n(ctx) : n || null; };
 
@@ -197,7 +213,7 @@
       const e = games.get(s.gameId) || { gameId: s.gameId, n: 0, wins: 0, time: 0, sum: 0, scored: 0, best: null, last: 0 };
       e.n++; e.time += dur(s); e.last = Math.max(e.last, BH.sessionDate(s));
       if (isWin(s)) e.wins++;
-      if (BH.hasScore(s, pid)) {
+      if (BH.hasScore(s, pid) && !s.mini) {
         const score = BH.totals(s)[pid];
         e.sum += score; e.scored++;
         if (e.best === null || (lower ? score < e.best : score > e.best)) e.best = score;
@@ -242,7 +258,7 @@
       for (const id of s.players) {
         const e = people.get(id) || { id, n: 0, wins: 0, sum: 0, scored: 0, best: null };
         e.n++; if (s.winners.includes(id)) e.wins++;
-        if (BH.hasScore(s, id)) {
+        if (BH.hasScore(s, id) && !s.mini) {
           e.sum += t[id]; e.scored++;
           if (e.best === null || better(t[id], e.best)) e.best = t[id];
           if (!bestScore || better(t[id], bestScore.v)) bestScore = { id, v: t[id], sid: s.id, at: BH.sessionDate(s) };
@@ -250,7 +266,7 @@
         people.set(id, e);
       }
       // one number per game: the winners' score (a tie counts once)
-      const ws = s.winners.filter(id => BH.hasScore(s, id));
+      const ws = s.mini ? [] : s.winners.filter(id => BH.hasScore(s, id));
       if (ws.length) { winSum += ws.reduce((a, id) => a + t[id], 0) / ws.length; winN++; }
       if (s.rounds.length && !BH.isEndScored(g)) {
         withRounds++; rounds += s.rounds.length;
@@ -265,8 +281,19 @@
     const list = [...people.values()].map(e => Object.assign(e, { rate: e.n ? e.wins / e.n : 0, avg: e.scored ? Math.round(e.sum / e.scored) : null }))
       .sort((a, b) => b.wins - a.wins || b.rate - a.rate || b.n - a.n);
     const fav = [...places.entries()].sort((a, b) => b[1] - a[1])[0];
+    // games of one mini-game: the record of each mini-game that keeps one (the most cards, or the fewest in the Gift),
+    // in the order of the game's tiles; the cards of different mini-games are never compared
+    const minis = ((g && g.cards) || []).filter(k => k.record).map(k => {
+      let rec = null;
+      for (const s of mine) if (s.mini === k.id && s.final) for (const id of s.players) {
+        const v = s.final[id]; if (!Number.isInteger(v)) continue;
+        const won = s.winners.includes(id);   // equal cards: the one who won that game (the duel) holds the record
+        if (!rec || (k.goal === "fewest" ? v < rec.v : v > rec.v) || (v === rec.v && won && !rec.won)) rec = { mini: k.id, id, v, won, at: BH.sessionDate(s) };
+      }
+      return rec;
+    }).filter(Boolean);
     return {
-      played: mine.length, players: list, bestScore, bestRound,
+      played: mine.length, players: list, bestScore, bestRound, minis, withRounds,
       avgWin: winN ? Math.round(winSum / winN) : null,
       time, avgTime: timed.length ? Math.round(time / timed.length) : 0,
       avgRounds: withRounds ? Math.round(10 * rounds / withRounds) / 10 : 0,
@@ -304,18 +331,20 @@
   // a game with a tie-breaker (Faraway: the lowest card number in the play area) uses it for the first place only
   // (the book decides the winner with it), and only when every player sharing that place has the value
   BH.standings = s => {
-    const g = BH.game(s.gameId), t = BH.totals(s), high = !(g && g.scoring && g.scoring.lowerWins);
+    const g = BH.game(s.gameId), t = BH.totals(s), high = !BH.lowerWinsOf(s);
     const useTb = BH.isEndScored(g) && g.endScore && g.endScore.tie && s.finalDetail;
     const tbOf = id => { const d = useTb && s.finalDetail[id]; return d && Number.isInteger(d.tie) ? d.tie : null; };
     const list = s.players.map((id, seat) => ({ id, seat, total: t[id], tb: tbOf(id) }));
-    list.sort((a, b) => (high ? b.total - a.total : a.total - b.total) || a.seat - b.seat);
+    // one mini-game with equal cards: the duel decided it — its winner comes first and alone in first place
+    const duel = id => (s.mini && s.winners.length === 1 && s.winners[0] === id ? 1 : 0);
+    list.sort((a, b) => (high ? b.total - a.total : a.total - b.total) || duel(b.id) - duel(a.id) || a.seat - b.seat);
     const topN = list.filter(x => list.length && x.total === list[0].total).length;
     const split = useTb && topN > 1 && list.slice(0, topN).every(x => x.tb !== null);
     if (split) list.splice(0, topN, ...list.slice(0, topN).sort((a, b) => a.tb - b.tb || a.seat - b.seat));
     let place = 0, prev = null;
     list.forEach((x, i) => {
       const apart = split && i < topN && prev && x.tb !== prev.tb;
-      if (prev === null || x.total !== prev.total || apart) place = i + 1;
+      if (prev === null || x.total !== prev.total || apart || duel(x.id) !== duel(prev.id)) place = i + 1;
       x.place = place; prev = x;
     });
     return list;
