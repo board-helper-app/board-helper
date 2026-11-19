@@ -1150,7 +1150,10 @@ console.log(`${passed} passed${process.exitCode ? ", some FAILED" : ""}`);
     assert.ok(!JSON.stringify(G).includes("Собери их все"), "«Собери их все» is not in this box");
     assert.ok(/больше всех/.test(by("potato").does) && /меньше всех/.test(by("potato").does) && /не меньше пяти/.test(by("potato").note), "Hot Potato: the most cards lose, the fewest marked the winner (BGA); at least 5 rounds (English rules)");
     assert.ok(/\*последним\*/.test(by("well").does) && /\*первым\*/.test(by("well").does) && /Board Game Arena/.test(by("well").note), "the Well: the last one rid of the cards loses (p. 1); the first one is marked the winner (BGA)");
-    assert.ok(G.cards.every(k => /<svg/.test(k.art) && k.when), "a drawing and the setup of each");
+    for (const k of G.cards) {
+      const src = k.art.match(/src="([^"]+)"/);
+      assert.ok(src && fs.existsSync(path.join(__dirname, "../app", src[1])) && k.when, "bundled illustration and setup: " + k.id);
+    }
     for (const k of G.cards) assert.ok(G.rules.some(r => r.id === k.id), k.id + " has its rule");
   });
   t("dobble: ties — a duel, three or more a round of Hot Potato; two calling at once — the first to take or place a card", () => {

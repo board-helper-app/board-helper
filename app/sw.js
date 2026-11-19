@@ -1,10 +1,11 @@
 // Offline cache for the phone version: the app's own files only.
 // Service workers run only over HTTPS (or on localhost), so offline mode needs the app hosted on HTTPS.
-const CACHE = "nastolki-v87";
+const CACHE = "nastolki-v88";
 const FONTS = ["onest-cyrillic-400", "onest-latin-400", "onest-cyrillic-500", "onest-latin-500", "onest-cyrillic-600", "onest-latin-600",
   "onest-cyrillic-700", "onest-latin-700", "unbounded-cyrillic-600", "unbounded-latin-600", "unbounded-cyrillic-700", "unbounded-latin-700"]
   .map(f => `fonts/${f}-normal.woff2`);
-const SHELL = ["./", "index.html", "styles.css", "manifest.webmanifest", "fonts/fonts.css", ...FONTS,
+const DOBBLE_ART = ["shuffle","common-symbol","simultaneous","choose-mini-game","tower","well","potato","gift","triplets-grid","triplets-take-refill","duel","series-winner","cover"].map(name => `games/dobble-art/${name}.webp`);
+const SHELL = [...DOBBLE_ART, "./", "index.html", "styles.css", "manifest.webmanifest", "fonts/fonts.css", ...FONTS,
   "js/util.js", "js/sync.js", "js/store.js", "js/cloud.js", "js/voice.js", "js/assets.js", "js/games.js", "js/chances.js", "js/art.js", "js/speech.js", "js/wheel.js", "js/rules.js", "js/app.js",
   ...["shuffle","deal","advanced","market","sanctuaries","tableau","explore","find","choose-sanctuary","scoring","last-round","wonders","cover","decks","card","biomes","quest","scoring-icons","original-sanctuaries","sanct-biome","phases","example"].map(name => `games/faraway-art/${name}.webp`),
   ...["deck","space","goal","challenge","shuffle","table","second-deck","brutal","zero","unlucky7","lucky13","score","just-one-more","flip4","swap","steal","discard","stay","cover","actions","modifiers","specials","seven","card-justonemore","card-swap","card-steal","card-discard","card-flip4","card-zero","card-unlucky7","card-lucky13","card-minus2","card-minus10","card-half"].map(name => `games/flip7v-art/${name}.webp`),

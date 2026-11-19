@@ -895,3 +895,5 @@ body:has(.setup-screen.tight) .topbar{display:none}
 .art:has(.flip7v-plate){background:#172b80}
 
 .art:has(.faraway-plate){background:#fff8ec}
+
+.art:has(.dobble-plate){background:#f5eaff}
