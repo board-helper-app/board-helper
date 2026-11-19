@@ -1177,7 +1177,17 @@ console.log(`${passed} passed${process.exitCode ? ", some FAILED" : ""}`);
     assert.ok(!BH.hasScore(stored, "b"));
   });
   t("ribbit: the start is the exception to stacking; drawing refers to page two", () => {
-    assert.match(G.rounds.reminder.join(" "), /Старт — исключение/);
+    assert.match(G.rounds.reminder.join(" "), /На старте черепахи на других не залезают/);
+    const rule = id => G.rules.find(r => r.id === id).body;
+    assert.match(rule("stack"), /башня, книга не уточняет/);   // a tower stepping back onto the start: the book is silent, the app does not invent
+    assert.match(rule("stack"), /под ней остаются/);
+    assert.match(rule("turn"), /даже если это не ваша черепаха/);
+    assert.match(rule("turn"), /пропустите ход/);
+    assert.match(rule("finish"), /прошла бы дальше, остановите её там/);
+    assert.match(BH.raceCards(G, session).find(c => c.id === "minus").does, /на старте, эту карту играть нельзя/);
+    // one concept — one word, as in the book: «забег», «ничейная», «последняя»
+    const texts = JSON.stringify([G.tagline, BH.setupSteps(session), BH.setupSteps({ ...session, opts: { openColors: true } }), G.rounds, G.rules, G.faq, G.scoring.end(), Array.from(BH.raceCards(G, session), c => [c.name, c.does])]);
+    assert.ok(!/без хозяина|[Гг]онк|[Оо]тставш|[Оо]тстающ/.test(texts.replace(/keys":"[^"]*"/g, "")), "one word: «ничейная», «забег», «последняя»");
     const draw = G.rules.find(rule => rule.id === "draw");
     assert.strictEqual(draw.page, 2);
     assert.match(draw.body, /доберите одну карту/);
