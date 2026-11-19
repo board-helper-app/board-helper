@@ -506,7 +506,8 @@ console.log(`${passed} passed${process.exitCode ? ", some FAILED" : ""}`);
     for (const gr of F.ruleGroups) for (const id of gr.ids) assert.ok(ids.has(id), "group " + id);
     for (const gr of F.faqGroups) for (const id of gr.refs) assert.ok(ids.has(id), "faq group " + id);
     for (const f of F.faq) assert.ok(ids.has(f.ref), "faq ref " + f.ref);
-    for (const k of Object.keys(F.images.rules)) assert.ok(ids.has(k), "image for " + k);
+    for (const rule of F.rules) for (const image of (rule.art || "").matchAll(/src="([^"]+)"/g))
+      assert.ok(fs.existsSync(path.join(__dirname, "../app", image[1])), "image for " + rule.id);
     assert.ok(F.rules.every(r => r.page === undefined || (r.page >= 1 && r.page <= 12)), "pages of the 12-page book");
     const grouped = new Set(F.ruleGroups.flatMap(gr => gr.ids));
     for (const id of ids) assert.ok(grouped.has(id), "rule in a group: " + id);

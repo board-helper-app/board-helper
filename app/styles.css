@@ -893,3 +893,5 @@ body:has(.setup-screen.tight) .topbar{display:none}
 
 /* Vengeance shares the responsive image contract with the base game. */
 .art:has(.flip7v-plate){background:#172b80}
+
+.art:has(.faraway-plate){background:#fff8ec}
