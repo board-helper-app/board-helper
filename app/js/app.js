@@ -340,10 +340,11 @@
     const recent = byDate.filter(s => s.status === "finished").slice(0, 10);
     // "repeat": the latest finished game (a game still going is not repeated), else the latest one
     const last = byDate.find(s => s.status === "finished" && BH.game(s.gameId)) || byDate.find(s => BH.game(s.gameId));
-    // three shelves, each game on one of them: what we play (the most played first), what we have not played for more than
-    // a year (the most forgotten first), what we have never played
-    const now = Date.now(), forgottenAll = BH.forgotten(S().sessions, now, FORGOTTEN_DAYS), stale = new Set(forgottenAll.map(x => x.g.id));
-    const ranked = gamesByPlays(), top = ranked.filter(x => x.n && !stale.has(x.g.id)).slice(0, 10), shelf = ranked.filter(x => !x.n), forgotten = forgottenAll.slice(0, 10);
+    // three shelves: what we play (the most played of all time first), what we have not played for more than a year (the
+    // most forgotten first), what we have never played. A much played game not played for a year stands on the first two:
+    // the user wants it in «Чаще всего играем» too (20.11.2026)
+    const now = Date.now(), forgottenAll = BH.forgotten(S().sessions, now, FORGOTTEN_DAYS);
+    const ranked = gamesByPlays(), top = ranked.filter(x => x.n).slice(0, 10), shelf = ranked.filter(x => !x.n), forgotten = forgottenAll.slice(0, 10);
     const nGames = BH.games.length;
     return `<div class="stack home">
       <a class="profile" href="#/players${me ? "/" + esc(me.id) : ""}">
@@ -3033,7 +3034,7 @@
   window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", applyTheme);
 
   /* ---------- start ---------- */
-  BH.version = "0.33.1";
+  BH.version = "0.33.2";
   applyTheme();
   // reloaded while a sheet was open: step off its history entry; a fresh start has nothing before it
   if (history.state && history.state.ov) history.back();
