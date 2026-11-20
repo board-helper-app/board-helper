@@ -1,0 +1,483 @@
+{
+  "version": "0.37.2",
+  "sources": [
+    "https://jackal.su/downloads/jackal-archipelago-rules-2020.pdf",
+    "https://jackal.su/rules",
+    "https://jackal.su/rules/abilities",
+    "https://hobbygames.ru/shakal-arhipelag-izdanie-2020"
+  ],
+  "approvedScenes": [
+    "crews",
+    "shuffle",
+    "islands-remove",
+    "bank",
+    "explore",
+    "carry-coin",
+    "combat",
+    "ship-move",
+    "first",
+    "ships",
+    "swim",
+    "end",
+    "bottle",
+    "abilities",
+    "teams",
+    "expansions"
+  ],
+  "originalTiles": [
+    {
+      "id": "coins",
+      "url": "https://cdn2.4dd.pw/jackal/images/400/arch-f1-coins-2.webp",
+      "file": "tile-coins.webp"
+    },
+    {
+      "id": "bottles",
+      "url": "https://cdn2.4dd.pw/jackal/images/400/arch-b5-bottles-2.webp",
+      "file": "tile-bottles.webp"
+    },
+    {
+      "id": "missionary",
+      "url": "https://cdn2.4dd.pw/jackal/images/400/arch-f4-missionary.webp",
+      "file": "tile-missionary.webp"
+    },
+    {
+      "id": "friday",
+      "url": "https://cdn2.4dd.pw/jackal/images/400/arch-f7-friday.webp",
+      "file": "tile-friday.webp"
+    },
+    {
+      "id": "gunn",
+      "url": "https://cdn2.4dd.pw/jackal/images/400/arch-m5-ben-gunn.webp",
+      "file": "tile-gunn.webp"
+    },
+    {
+      "id": "cart",
+      "url": "https://cdn2.4dd.pw/jackal/images/400/arch-m6-wheelbarrow.webp",
+      "file": "tile-cart.webp"
+    },
+    {
+      "id": "turtle",
+      "url": "https://cdn2.4dd.pw/jackal/images/400/arch-b8-turtle.webp",
+      "file": "tile-turtle.webp"
+    },
+    {
+      "id": "arrow",
+      "url": "https://cdn2.4dd.pw/jackal/images/400/arch-b1-arrow-3.webp",
+      "file": "tile-arrow.webp"
+    },
+    {
+      "id": "ice",
+      "url": "https://cdn2.4dd.pw/jackal/images/400/arch-b3-ice.webp",
+      "file": "tile-ice.webp"
+    },
+    {
+      "id": "trampoline",
+      "url": "https://cdn2.4dd.pw/jackal/images/400/arch-f4-trampoline.webp",
+      "file": "tile-trampoline.webp"
+    },
+    {
+      "id": "dice",
+      "url": "https://cdn2.4dd.pw/jackal/images/400/arch-f1-crossroads.webp",
+      "file": "tile-dice.webp"
+    },
+    {
+      "id": "croc",
+      "url": "https://cdn2.4dd.pw/jackal/images/400/arch-f1-crocodile.webp",
+      "file": "tile-croc.webp"
+    },
+    {
+      "id": "balloon",
+      "url": "https://cdn2.4dd.pw/jackal/images/400/arch-f1-balloon.webp",
+      "file": "tile-balloon.webp"
+    },
+    {
+      "id": "plane",
+      "url": "https://cdn2.4dd.pw/jackal/images/400/arch-m2-airplane.webp",
+      "file": "tile-plane.webp"
+    },
+    {
+      "id": "horse",
+      "url": "https://cdn2.4dd.pw/jackal/images/400/arch-f3-horse.webp",
+      "file": "tile-horse.webp"
+    },
+    {
+      "id": "gun",
+      "url": "https://cdn2.4dd.pw/jackal/images/400/arch-m3-gun.webp",
+      "file": "tile-gun.webp"
+    },
+    {
+      "id": "tangled",
+      "url": "https://cdn2.4dd.pw/jackal/images/400/arch-f7-tangled.webp",
+      "file": "tile-tangled.webp"
+    },
+    {
+      "id": "wheel",
+      "url": "https://cdn2.4dd.pw/jackal/images/400/arch-m8-wheel.webp",
+      "file": "tile-wheel.webp"
+    },
+    {
+      "id": "cave",
+      "url": "https://cdn2.4dd.pw/jackal/images/400/arch-f6-cave.webp",
+      "file": "tile-cave.webp"
+    },
+    {
+      "id": "maze",
+      "url": "https://cdn2.4dd.pw/jackal/images/400/arch-m2-rotate-4.webp",
+      "file": "tile-maze.webp"
+    },
+    {
+      "id": "pit",
+      "url": "https://cdn2.4dd.pw/jackal/images/400/arch-b4-pitfall.webp",
+      "file": "tile-pit.webp"
+    },
+    {
+      "id": "keg",
+      "url": "https://cdn2.4dd.pw/jackal/images/400/arch-b1-keg.webp",
+      "file": "tile-keg.webp"
+    },
+    {
+      "id": "fort",
+      "url": "https://cdn2.4dd.pw/jackal/images/400/arch-f1-fort.webp",
+      "file": "tile-fort.webp"
+    },
+    {
+      "id": "shrine",
+      "url": "https://cdn2.4dd.pw/jackal/images/400/arch-f4-senctuary.webp",
+      "file": "tile-shrine.webp"
+    },
+    {
+      "id": "jungle",
+      "url": "https://cdn2.4dd.pw/jackal/images/400/arch-f1-jungle.webp",
+      "file": "tile-jungle.webp"
+    },
+    {
+      "id": "palm",
+      "url": "https://cdn2.4dd.pw/jackal/images/400/arch-m9-palm.webp",
+      "file": "tile-palm.webp"
+    },
+    {
+      "id": "cannibal",
+      "url": "https://cdn2.4dd.pw/jackal/images/400/arch-m4-cannibal.webp",
+      "file": "tile-cannibal.webp"
+    },
+    {
+      "id": "caramba",
+      "url": "https://cdn2.4dd.pw/jackal/images/400/arch-b1-caramba.webp",
+      "file": "tile-caramba.webp"
+    },
+    {
+      "id": "musket",
+      "url": "https://cdn2.4dd.pw/jackal/images/400/arch-m2-musket.webp",
+      "file": "tile-musket.webp"
+    },
+    {
+      "id": "quake",
+      "url": "https://cdn2.4dd.pw/jackal/images/400/arch-m1-earthquake.webp",
+      "file": "tile-quake.webp"
+    },
+    {
+      "id": "lighthouse",
+      "url": "https://cdn2.4dd.pw/jackal/images/400/arch-m1-lighthouse.webp",
+      "file": "tile-lighthouse.webp"
+    },
+    {
+      "id": "smoke",
+      "url": "https://cdn2.4dd.pw/jackal/images/400/arch-f2-smoke.webp",
+      "file": "tile-smoke.webp"
+    },
+    {
+      "id": "spyglass",
+      "url": "https://cdn2.4dd.pw/jackal/images/400/arch-m5-spyglass.webp",
+      "file": "tile-spyglass.webp"
+    },
+    {
+      "id": "tide",
+      "url": "https://cdn2.4dd.pw/jackal/images/400/arch-m9-tide.webp",
+      "file": "tile-tide.webp"
+    },
+    {
+      "id": "empty",
+      "url": "https://cdn2.4dd.pw/jackal/images/400/arch-b1-empty-1.webp",
+      "file": "tile-empty.webp"
+    }
+  ],
+  "canonicalIslands": {
+    "source": "https://jackal.su/downloads/jackal-archipelago-rules-2020.pdf",
+    "pdfPage": 19,
+    "printedPage": 18,
+    "crops": {
+      "1": {
+        "file": "reference-canonical-island-1.png",
+        "x": 570,
+        "y": 800,
+        "w": 720,
+        "h": 840,
+        "tiles": 24
+      },
+      "2": {
+        "file": "reference-canonical-island-2.png",
+        "x": 1466,
+        "y": 690,
+        "w": 806,
+        "h": 990,
+        "tiles": 32
+      },
+      "3": {
+        "file": "reference-canonical-island-3.png",
+        "x": 2344,
+        "y": 950,
+        "w": 620,
+        "h": 1530,
+        "tiles": 40
+      }
+    }
+  },
+  "cover": {
+    "source": "https://hobbygames.ru/image/cache/hobbygames_beta/data/Magellan/Shakal_Arhipelag/2020/Shakal_Archipelag_01-1980x1980-wm.webp",
+    "crop": [
+      8,
+      8,
+      878,
+      890
+    ]
+  },
+  "setupCrop": {
+    "source": "PDF printed page5 at3600px",
+    "crop": [
+      700,
+      1960,
+      1040,
+      1020
+    ]
+  },
+  "assets": {
+    "crews": [
+      768,
+      512
+    ],
+    "shuffle": [
+      768,
+      512
+    ],
+    "islands-remove": [
+      768,
+      512
+    ],
+    "bank": [
+      768,
+      512
+    ],
+    "explore": [
+      768,
+      512
+    ],
+    "carry-coin": [
+      768,
+      512
+    ],
+    "combat": [
+      768,
+      512
+    ],
+    "ship-move": [
+      768,
+      512
+    ],
+    "first": [
+      768,
+      512
+    ],
+    "ships": [
+      768,
+      512
+    ],
+    "swim": [
+      768,
+      512
+    ],
+    "end": [
+      768,
+      512
+    ],
+    "bottle": [
+      768,
+      512
+    ],
+    "abilities": [
+      768,
+      512
+    ],
+    "teams": [
+      768,
+      512
+    ],
+    "expansions": [
+      768,
+      512
+    ],
+    "tile-coins": [
+      400,
+      400
+    ],
+    "tile-bottles": [
+      400,
+      400
+    ],
+    "tile-missionary": [
+      400,
+      400
+    ],
+    "tile-friday": [
+      400,
+      400
+    ],
+    "tile-gunn": [
+      400,
+      400
+    ],
+    "tile-cart": [
+      400,
+      400
+    ],
+    "tile-turtle": [
+      400,
+      400
+    ],
+    "tile-arrow": [
+      400,
+      400
+    ],
+    "tile-ice": [
+      400,
+      400
+    ],
+    "tile-trampoline": [
+      400,
+      400
+    ],
+    "tile-dice": [
+      400,
+      400
+    ],
+    "tile-croc": [
+      400,
+      400
+    ],
+    "tile-balloon": [
+      400,
+      400
+    ],
+    "tile-plane": [
+      400,
+      400
+    ],
+    "tile-horse": [
+      400,
+      400
+    ],
+    "tile-gun": [
+      400,
+      400
+    ],
+    "tile-tangled": [
+      400,
+      400
+    ],
+    "tile-wheel": [
+      400,
+      400
+    ],
+    "tile-cave": [
+      400,
+      400
+    ],
+    "tile-maze": [
+      400,
+      400
+    ],
+    "tile-pit": [
+      400,
+      400
+    ],
+    "tile-keg": [
+      400,
+      400
+    ],
+    "tile-fort": [
+      400,
+      400
+    ],
+    "tile-shrine": [
+      400,
+      400
+    ],
+    "tile-jungle": [
+      400,
+      400
+    ],
+    "tile-palm": [
+      400,
+      400
+    ],
+    "tile-cannibal": [
+      400,
+      400
+    ],
+    "tile-caramba": [
+      400,
+      400
+    ],
+    "tile-musket": [
+      400,
+      400
+    ],
+    "tile-quake": [
+      400,
+      400
+    ],
+    "tile-lighthouse": [
+      400,
+      400
+    ],
+    "tile-smoke": [
+      400,
+      400
+    ],
+    "tile-spyglass": [
+      400,
+      400
+    ],
+    "tile-tide": [
+      400,
+      400
+    ],
+    "tile-empty": [
+      400,
+      400
+    ],
+    "island-1": [
+      720,
+      840
+    ],
+    "island-2": [
+      806,
+      990
+    ],
+    "island-3": [
+      620,
+      1530
+    ],
+    "setup-original": [
+      1040,
+      1020
+    ],
+    "cover": [
+      878,
+      890
+    ],
+    "shuffle-expansions": [
+      1320,
+      520
+    ]
+  }
+}
