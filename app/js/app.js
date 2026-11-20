@@ -1011,7 +1011,7 @@
     const next = cur < last ? `<button type="button" class="btn block hs-next" data-act="heist-step" data-i="${cur + 1}">${esc(cur + 1 === last ? "Ко вскрытию" : `Раунд ${cur + 1} сыгран`)}${IC.chev}</button>`
       : (H.check ? `<button type="button" class="btn block hs-next" data-act="show-check">${IC.cards}Проверить вскрытие</button>` : "");
     return `<section class="panel hs-panel"><div class="sec-h"><h2>${esc(H.label)} ${n}</h2></div>${strip}
-      ${p.art ? `<div class="rule-img">${p.art}</div>` : ""}<h3 class="hs-title">${esc(p.title)}</h3>${stepsHTML(p.steps, g.id)}${chips}${next}${cur === last ? afterHTML(afterOf(g, ctx, n, 0), g.id) : ""}</section>`;
+      ${p.art ? `<div class="rule-img" style="margin-bottom:16px">${p.art}</div>` : ""}<h3 class="hs-title">${esc(p.title)}</h3>${stepsHTML(p.steps, g.id)}${chips}${next}${cur === last ? afterHTML(afterOf(g, ctx, n, 0), g.id) : ""}</section>`;
   }
   function viewPlayCoop(s, g) {
     const ctx = BH.ctxOf(s), H = g.heist, t = BH.coopTally(s), n = s.rounds.length + 1;
@@ -3196,7 +3196,7 @@
   window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", applyTheme);
 
   /* ---------- start ---------- */
-  BH.version = "0.35.1";
+  BH.version = "0.35.2";
   applyTheme();
   // reloaded while a sheet was open: step off its history entry; a fresh start has nothing before it
   if (history.state && history.state.ov) history.back();
