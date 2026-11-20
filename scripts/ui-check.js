@@ -125,6 +125,7 @@
         await visit("#/s/" + s.id + "/play");
         // a cooperative game: the choice of a card, the finish dialog — looked at only, nothing is pressed in them
         if (document.querySelector('[data-act="heist"]')) {
+          const ho = document.querySelector('[data-act="hc-open"]'); if (ho) { ho.click(); await wait(300); out.push(...scan(`${s.id} [карта ограбления]`)); await closeOverlay(); }
           const cp = document.querySelector('[data-act="coop-pick"]'); if (cp) { cp.click(); await wait(300); out.push(...scan(`${s.id} [выбор карты]`)); await closeOverlay(); }
           // the heist step by step: every step, then the showdown check filled in — the step is put back afterwards
           const was = (s.coop && s.coop.step) || 0, steps = document.querySelectorAll('.hs-strip [data-act="heist-step"]').length;

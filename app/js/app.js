@@ -1017,13 +1017,11 @@
     const ctx = BH.ctxOf(s), H = g.heist, t = BH.coopTally(s), n = s.rounds.length + 1;
     const st = s.coop || H.start(ctx), act = H.active(st), asks = H.asks ? H.asks(ctx, st) : [];
     const slotOf = a => (a.perm ? "perm" : a.kind === "sp" ? "sp" : "ch" + (st.ch || []).indexOf(a.n));
-    const cards = act.length || asks.length ? `<section class="panel heist-cards"><div class="sec-h"><h2>Карты ограбления</h2></div>
-      ${act.map(a => { const d = H.cards[a.kind][a.n]; return `<div class="hc ${a.kind}">
-        <button type="button" class="hc-head" data-act="coop-pick" data-kind="${a.kind}" data-slot="${slotOf(a)}" title="Другая карта">
-          <span class="hc-kind">${a.kind === "sp" ? "Специалист" : a.perm ? "Испытание на всю игру" : "Испытание"}</span>
-          <span class="hc-name"><b>№${a.n} ${esc(d ? d.ru : "")}</b><small>${esc(d ? d.en : "")}</small></span>${I.edit}</button>
-        ${d ? stepsHTML(d.steps, g.id) : ""}</div>`; }).join("")}
-      ${asks.map(q => `<button type="button" class="btn block hc-ask" data-act="coop-pick" data-kind="${q.kind}" data-slot="${q.perm ? "perm" : "new"}">${I.plus}${esc(q.label)}: какую карту открыли?</button>`).join("")}</section>` : "";
+    // the cards in play: a line each on top (they act the whole heist), a tap opens the card
+    const cards = act.length || asks.length ? `<section class="hc-strip" aria-label="Карты этого ограбления">
+      ${asks.map(q => `<button type="button" class="btn block hc-ask" data-act="coop-pick" data-kind="${q.kind}" data-slot="${q.perm ? "perm" : "new"}">${I.plus}${esc(q.label)}: какую карту открыли?</button>`).join("")}
+      ${act.map(a => { const d = H.cards[a.kind][a.n]; return `<button type="button" class="hc-line ${a.kind}" data-act="hc-open" data-kind="${a.kind}" data-n="${a.n}" data-slot="${slotOf(a)}">
+          <span class="hc-kind">${a.kind === "sp" ? "Специалист" : a.perm ? "На всю игру" : "Испытание"}</span><span class="hc-n">${a.n}</span><b class="hc-t">${esc(d ? d.ru : "")}</b>${IC.chev}</button>`; }).join("")}</section>` : "";
     const hist = s.rounds.length ? `<section class="panel"><div class="sec-h"><h2>Ограбления</h2></div><ol class="heist-hist">${s.rounds.map((rd, i) => {
       const used = rd.coop ? H.active(rd.coop).map(a => (H.cards[a.kind][a.n] || {}).ru).filter(Boolean) : [];
       return `<li class="${rd.heist === "ok" ? "ok" : "fail"}"><span class="hh-n">${i + 1}</span><b>${rd.heist === "ok" ? esc(g.scoring.okLabel) : esc(g.scoring.failLabel)}</b>${used.length ? `<small>${esc(used.join(", "))}</small>` : ""}</li>`; }).join("")}</ol></section>` : "";
@@ -1034,8 +1032,8 @@
           <span class="ct-row"><span class="label">Тревоги</span><span class="pips">${pips(t.fail, t.losses, "red")}</span></span>
         </div>
       </div>
-      ${heistStepsHTML(s, g, ctx, act, n)}
       ${cards}
+      ${heistStepsHTML(s, g, ctx, act, n)}
       ${hist}`;
     return playShell(s, g, [
       { id: "heist", label: H.label, html: heist },
@@ -2320,6 +2318,30 @@
      kept while the heist goes on (not saved: the next heist starts empty). The verdict offers to record the heist */
   const showChecks = {};
   const SUIT = { s: "♠", h: "♥", d: "♦", c: "♣" };
+  function openCoopPick(s, kind, slot) {
+        const g = BH.game(s.gameId), ctx = BH.ctxOf(s), H = g.heist;
+        const st = Object.assign({ ch: [], sp: 0, perm: [], nCh: 1, nSp: 1 }, s.coop || H.start(ctx));
+        const cur = slot === "perm" ? st.perm[0] : slot === "sp" ? st.sp : slot.startsWith("ch") ? st.ch[+slot.slice(2)] : 0;
+        const taken = [...st.perm, ...st.ch].filter(x => x !== cur);
+        openDialog({ title: kind === "sp" ? "Какой специалист?" : "Какое испытание?", text: "Номер — в углу карты.", buttons: [{ label: "Отмена", run: closeDialog }],
+          choices: H.choices(ctx, kind).filter(x => kind === "sp" || !taken.includes(x)).map(x => ({ n: x, label: H.cards[kind][x].ru, sub: H.cards[kind][x].en, hint: H.cards[kind][x].line || H.cards[kind][x].steps[0], current: x === cur, run: () => {
+            const c = fresh(s), v = Object.assign({ ch: [], sp: 0, perm: [], nCh: 1, nSp: 1 }, c.coop || H.start(ctx));
+            if (slot === "perm") v.perm = [x];
+            else if (slot === "sp") { v.sp = x; v.nSp = (x % 10) + 1; }
+            else if (slot === "new") { v.ch = [...v.ch, x]; v.nCh = (x % 10) + 1; }
+            else { v.ch[+slot.slice(2)] = x; v.nCh = (x % 10) + 1; }
+            c.coop = v; BH.saveNow(); closeDialog(); render();
+          } })) });
+  }
+  // a card in play, opened from the strip: what it does, when it acts (a specialist — once this heist), another card
+  function openHeistCard(s, kind, n, slot) {
+    const g = BH.game(s.gameId), d = g.heist.cards[kind][n]; if (!d) return;
+    const when = kind === "sp"
+      ? (d.at ? "Действует сам в своём раунде — строка есть в шагах ограбления. Только на это ограбление." : "Один раз за это ограбление: в любой момент до вскрытия, если все согласны.")
+      : slot === "perm" ? "Действует всю игру." : "Действует всё это ограбление.";
+    openDialog({ title: `№${n} ${d.ru}`, html: `<p class="small muted">${esc(d.en)} · ${kind === "sp" ? "специалист" : slot === "perm" ? "испытание на всю игру" : "испытание"}</p>${stepsHTML(d.steps, g.id)}<p class="note info small hc-when">${esc(when)}</p>`,
+      buttons: [{ label: "Понятно", primary: true, run: closeDialog }, { label: "Другая карта", run: () => { dialog = null; openCoopPick(s, kind, slot); } }] });
+  }
   // a heist recorded: the cards of its time kept with it, the next heist's cards; three of one kind end the game
   function recordHeist(s, ok) {
         const g = BH.game(s.gameId), ctx = BH.ctxOf(s);
@@ -2697,22 +2719,8 @@
       case "show-finger": if (sheet && sheet.kind === "show") { const st = showState(); st.finger = st.finger === +el.dataset.v ? null : +el.dataset.v; renderOverlay(); } break;
       case "show-record": if (sheet && sheet.kind === "show") { const rs = BH.session(sheet.sid); sheet = null; renderOverlay(); recordHeist(rs, el.dataset.ok === "1"); } break;
       // the card in a slot: one of the stack, chosen from the list (the app suggests the next one, the table may differ)
-      case "coop-pick": {
-        const g = BH.game(s.gameId), ctx = BH.ctxOf(s), H = g.heist, kind = el.dataset.kind, slot = el.dataset.slot;
-        const st = Object.assign({ ch: [], sp: 0, perm: [], nCh: 1, nSp: 1 }, s.coop || H.start(ctx));
-        const cur = slot === "perm" ? st.perm[0] : slot === "sp" ? st.sp : slot.startsWith("ch") ? st.ch[+slot.slice(2)] : 0;
-        const taken = [...st.perm, ...st.ch].filter(x => x !== cur);
-        openDialog({ title: kind === "sp" ? "Какой специалист?" : "Какое испытание?", text: "Номер — в углу карты.", buttons: [{ label: "Отмена", run: closeDialog }],
-          choices: H.choices(ctx, kind).filter(x => kind === "sp" || !taken.includes(x)).map(x => ({ n: x, label: H.cards[kind][x].ru, sub: H.cards[kind][x].en, hint: H.cards[kind][x].line || H.cards[kind][x].steps[0], current: x === cur, run: () => {
-            const c = fresh(s), v = Object.assign({ ch: [], sp: 0, perm: [], nCh: 1, nSp: 1 }, c.coop || H.start(ctx));
-            if (slot === "perm") v.perm = [x];
-            else if (slot === "sp") { v.sp = x; v.nSp = (x % 10) + 1; }
-            else if (slot === "new") { v.ch = [...v.ch, x]; v.nCh = (x % 10) + 1; }
-            else { v.ch[+slot.slice(2)] = x; v.nCh = (x % 10) + 1; }
-            c.coop = v; BH.saveNow(); closeDialog(); render();
-          } })) });
-        break;
-      }
+      case "coop-pick": openCoopPick(s, el.dataset.kind, el.dataset.slot); break;
+      case "hc-open": openHeistCard(s, el.dataset.kind, +el.dataset.n, el.dataset.slot); break;
       case "round-done": {
         const last = ((BH.game(s.gameId) || {}).rounds || {}).count || 8;
         if (s.rounds.length >= last) break;
@@ -3142,7 +3150,7 @@
   window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", applyTheme);
 
   /* ---------- start ---------- */
-  BH.version = "0.34.0";
+  BH.version = "0.34.1";
   applyTheme();
   // reloaded while a sheet was open: step off its history entry; a fresh start has nothing before it
   if (history.state && history.state.ov) history.back();

@@ -819,6 +819,17 @@ body:has(.setup-screen.tight) .topbar{display:none}
 .hc-name b{overflow-wrap:anywhere}
 .hc-name small{color:var(--muted)}
 .hc-ask{margin-top:8px}
+/* The Gang: the cards in play on top of the heist — a line each, the kind as a tag, a tap opens the card */
+.hc-strip{display:grid;gap:6px}
+.hc-strip .hc-ask{margin-top:0}
+.hc-line{display:grid;grid-template-columns:auto auto minmax(0,1fr) auto;align-items:center;gap:8px;width:100%;min-height:48px;padding:8px 12px;border-radius:14px;border:1px solid color-mix(in srgb,var(--accent) 45%,var(--line));background:var(--surface);color:var(--ink);font:inherit;text-align:left;cursor:pointer}
+.hc-line.sp{border-color:color-mix(in srgb,var(--good) 50%,var(--line))}
+.hc-line .hc-kind{font-size:11px;padding:3px 7px;border-radius:999px;background:var(--accent-soft);letter-spacing:.04em}
+.hc-line.sp .hc-kind{background:var(--good-soft);color:var(--good)}
+.hc-n{font-family:var(--f-display);font-weight:700;color:var(--muted)}
+.hc-t{overflow-wrap:anywhere;font-weight:700}
+.hc-line svg{width:18px;height:18px;fill:none;stroke:var(--muted);stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round}
+.hc-when{margin-top:10px}
 .heist-hist{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px}
 .heist-hist li{display:grid;grid-template-columns:auto auto minmax(0,1fr);align-items:baseline;gap:4px 10px}
 .heist-hist .hh-n{font-family:var(--f-display);font-weight:700;color:var(--muted);min-width:1.4em}
