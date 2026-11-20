@@ -1000,6 +1000,19 @@
   /* a cooperative game (The Gang): heists one after another, each ends in a cracked vault or an alarm;
      in the advanced modes the cards in play this heist, with what they change */
   const pips = (k, of, cls) => Array.from({ length: of }, (_, i) => `<i class="pip${i < k ? " " + cls : ""}"></i>`).join("");
+  /* the heist step by step (docs/ui.md «Помогать, а не нагружать»): a strip 1 · 2 · 3 · 4 · Вскрытие, only the current step
+     open with the lines of the cards in play; how to take chips — folded inside the rounds; at the showdown — what to do after
+     it and the check of the hands. The step is kept with the heist (s.coop.step), «Отменить» brings it back too */
+  function heistStepsHTML(s, g, ctx, act, n) {
+    const H = g.heist, steps = H.steps(ctx, act), last = steps.length - 1, cur = Math.min((s.coop && s.coop.step) || 0, last), p = steps[cur];
+    const short = (x, i) => (i === last ? x.title : String(i + 1));
+    const strip = `<div class="hs-strip" role="tablist" aria-label="Шаги ограбления">${steps.map((x, i) => `<button type="button" role="tab" class="hs-chip${i < cur ? " done" : ""}" data-act="heist-step" data-i="${i}" aria-selected="${i === cur}" aria-label="${esc(x.title)}">${i < cur ? I.check : ""}<span>${esc(short(x, i))}</span></button>`).join("")}</div>`;
+    const chips = cur < last ? `<details class="hs-chips"${n === 1 && cur === 0 ? " open" : ""}><summary>Как брать фишки</summary>${stepsHTML(g.rounds.reminder, g.id)}</details>` : "";
+    const next = cur < last ? `<button type="button" class="btn block hs-next" data-act="heist-step" data-i="${cur + 1}">${esc(cur + 1 === last ? "Ко вскрытию" : `Раунд ${cur + 1} сыгран`)}${IC.chev}</button>`
+      : (H.check ? `<button type="button" class="btn block hs-next" data-act="show-check">${IC.cards}Проверить вскрытие</button>` : "");
+    return `<section class="panel hs-panel"><div class="sec-h"><h2>${esc(H.label)} ${n}</h2></div>${strip}
+      <h3 class="hs-title">${esc(p.title)}</h3>${stepsHTML(p.steps, g.id)}${chips}${next}${cur === last ? afterHTML(afterOf(g, ctx, n, 0), g.id) : ""}</section>`;
+  }
   function viewPlayCoop(s, g) {
     const ctx = BH.ctxOf(s), H = g.heist, t = BH.coopTally(s), n = s.rounds.length + 1;
     const st = s.coop || H.start(ctx), act = H.active(st), asks = H.asks ? H.asks(ctx, st) : [];
@@ -1021,9 +1034,8 @@
           <span class="ct-row"><span class="label">Тревоги</span><span class="pips">${pips(t.fail, t.losses, "red")}</span></span>
         </div>
       </div>
+      ${heistStepsHTML(s, g, ctx, act, n)}
       ${cards}
-      <section class="panel"><div class="sec-h"><h2>${esc(H.label)} ${n}: что делать</h2></div><ol class="phase-list">${H.steps(ctx, act).map(p => `<li><b>${esc(p.title)}</b>${stepsHTML(p.steps, g.id)}</li>`).join("")}</ol>${afterHTML(afterOf(g, ctx, n, 0), g.id)}</section>
-      <details class="panel hint" ${n === 1 ? "open" : ""}><summary>Как брать фишки</summary><div class="reminder">${stepsHTML(g.rounds.reminder, g.id)}</div></details>
       ${hist}`;
     return playShell(s, g, [
       { id: "heist", label: H.label, html: heist },
@@ -1929,7 +1941,7 @@
     if (dialog) {
       overlayRoot.innerHTML = `<div class="overlay" data-act="overlay-bg"><div class="sheet" role="dialog" aria-modal="true" aria-labelledby="dlg-h" style="max-width:460px">
         <div class="sheet-head"><h2 id="dlg-h">${esc(dialog.title)}</h2></div>
-        <div class="sheet-body">${dialog.html || `<p>${esc(dialog.text)}</p>`}${dialog.choices ? `<div class="list dlg-choices">${dialog.choices.map((c, i) => `<button type="button" class="item dlg-choice" data-act="dlg-choice" data-i="${i}" aria-pressed="${!!c.current}"><div class="t"><b>${esc(c.label)}</b>${c.sub ? `<span class="small muted">${esc(c.sub)}</span>` : ""}</div>${c.current ? I.check : ""}</button>`).join("")}</div>` : ""}</div>
+        <div class="sheet-body">${dialog.html || `<p>${esc(dialog.text)}</p>`}${dialog.choices ? `<div class="list dlg-choices">${dialog.choices.map((c, i) => `<button type="button" class="item dlg-choice" data-act="dlg-choice" data-i="${i}" aria-pressed="${!!c.current}">${c.n !== undefined ? `<span class="dlg-n">${esc(c.n)}</span>` : ""}<div class="t"><b>${esc(c.label)}</b>${c.sub ? `<span class="small muted">${esc(c.sub)}</span>` : ""}${c.hint ? `<span class="dlg-hint">${fmtStep(c.hint)}</span>` : ""}</div>${c.current ? `<span class="pick-on" title="Сейчас">${I.check}</span>` : ""}</button>`).join("")}</div>` : ""}</div>
         <div class="sheet-foot" style="flex-direction:column">${dialog.buttons.map((b, i) => `<button class="btn ${b.primary ? "primary" : b.danger ? "danger" : ""} big block" data-act="dlg" data-i="${i}">${esc(b.label)}</button>`).join("")}</div>
       </div></div>`;
       const f = overlayRoot.querySelector(".btn.primary") || overlayRoot.querySelector(".btn"); if (f) f.focus();
@@ -2303,7 +2315,96 @@
     finish(s, [st.winner]);
   }
 
+  /* The Gang: the showdown checked by the app (pp. 8–12) — the 5 common cards and the pocket cards of each typed in by taps
+     (a value, then a suit; the next empty place opens by itself), the red chip of each, what the scans named. The cards are
+     kept while the heist goes on (not saved: the next heist starts empty). The verdict offers to record the heist */
+  const showChecks = {};
+  const SUIT = { s: "♠", h: "♥", d: "♦", c: "♣" };
+  // a heist recorded: the cards of its time kept with it, the next heist's cards; three of one kind end the game
+  function recordHeist(s, ok) {
+        const g = BH.game(s.gameId), ctx = BH.ctxOf(s);
+        const before = s.coop || g.heist.start(ctx);
+        s.rounds.push({ at: Date.now(), scores: {}, flags: {}, detail: {}, heist: ok ? "ok" : "fail", coop: JSON.parse(JSON.stringify(before)) });
+        const t = BH.coopTally(s);
+        if (t.over) { s.coop = before; finish(s, t.won ? s.players.slice() : []); return; }
+        s.coop = g.heist.next(ctx, before, ok); delete s.coop.step;
+        BH.saveNow(); quiet(); render(); window.scrollTo(0, 0);
+        const n = s.rounds.length;
+        BH.toast(`${g.heist.label} ${n}: ${ok ? g.scoring.okLabel.toLowerCase() : g.scoring.failLabel.toLowerCase()}`, { label: "Отменить", run: () => {
+          const c = BH.session(s.id); if (!c || c.status !== "playing" || sheet || dialog || c.rounds.length !== n) return;
+          const last = c.rounds.pop(); if (last && last.coop) c.coop = last.coop; BH.saveNow(); render();
+        } });
+  }
+  function openShowCheck(s) {
+    const g = BH.game(s.gameId), C = g.heist.check, act = g.heist.active(s.coop || g.heist.start(BH.ctxOf(s))), pocket = C.pocket(act);
+    let st = showChecks[s.id];
+    if (!st || st.pocket !== pocket || st.heist !== s.rounds.length || Object.keys(st.hands).join() !== s.players.join())
+      st = showChecks[s.id] = { heist: s.rounds.length, pocket, board: Array(5).fill(null), retina: null, finger: null, rank: null, slot: "b:0",
+        hands: Object.fromEntries(s.players.map(id => [id, { star: null, cards: Array(pocket).fill(null) }])) };
+    sheet = { kind: "show", sid: s.id }; BH.clearToast(); ovOpen(); renderOverlay();
+  }
+  const showState = () => showChecks[sheet.sid];
+  const showSlots = st => [...st.board.map((c, i) => "b:" + i), ...Object.keys(st.hands).flatMap(id => st.hands[id].cards.map((c, i) => "p:" + id + ":" + i))];
+  const showGet = (st, slot) => { const [k, a, b] = slot.split(":"); return k === "b" ? st.board[+a] : st.hands[a].cards[+b]; };
+  const showSet = (st, slot, v) => { if (!slot) return; const [k, a, b] = slot.split(":"); if (k === "b") st.board[+a] = v; else st.hands[a].cards[+b] = v; };
+  function showPut(suit) {
+    const st = showState(); if (!st.slot || !st.rank) return;
+    const card = st.rank + suit, slots = showSlots(st);
+    if (slots.some(x => x !== st.slot && showGet(st, x) === card)) return;
+    showSet(st, st.slot, card); st.rank = null;
+    const from = slots.indexOf(st.slot);
+    st.slot = [...slots.slice(from + 1), ...slots.slice(0, from)].find(x => !showGet(st, x)) || null;
+    renderOverlay();
+  }
+  function showSheetHTML() {
+    const s = BH.session(sheet.sid), g = BH.game(s.gameId), H = g.heist, C = H.check, st = showState();
+    const act = H.active(s.coop || H.start(BH.ctxOf(s))), scans = C.scans(act), jack = C.jack(act), muscle = C.muscle(act), n = s.players.length;
+    const used = new Set(showSlots(st).map(x => showGet(st, x)).filter(Boolean));
+    const cardTxt = c => `${C.rankName(c)}${SUIT[c[1]] || ""}`;
+    const slotBtn = (slot, label) => { const c = showGet(st, slot);
+      return `<button type="button" class="sc-slot${c && "hd".includes(c[1]) ? " red" : ""}" data-act="show-slot" data-v="${slot}" aria-pressed="${st.slot === slot}" aria-label="${esc(label)}: ${c ? esc(cardTxt(c)) : "пусто"}">${c ? esc(cardTxt(c)) : ""}</button>`; };
+    const picker = `<div class="sc-pick"><div class="sc-ranks">${C.ranks.split("").map(r => `<button type="button" class="sc-key" data-act="show-rank" data-v="${r}" aria-pressed="${st.rank === r}">${C.rankName(r + "s")}</button>`).join("")}</div>
+      <div class="sc-suits">${C.suits.split("").map(su => `<button type="button" class="sc-key sc-suit${"hd".includes(su) ? " red" : ""}" data-act="show-suit" data-v="${su}" ${!st.rank || used.has(st.rank + su) ? "disabled" : ""} aria-label="${({ s: "пики", h: "червы", d: "бубны", c: "трефы" })[su]}">${SUIT[su]}</button>`).join("")}
+      ${st.slot && showGet(st, st.slot) ? `<button type="button" class="sc-key sc-clear" data-act="show-clear">Убрать</button>` : ""}</div>
+      ${jack ? `<button type="button" class="sc-key sc-jack" data-act="show-jack" ${used.has("Jx") ? "disabled" : ""}>«Jack»: J без масти</button>` : ""}
+      <p class="tiny muted">${st.rank ? "Теперь масть." : "Сначала значение, потом масть."}</p></div>`;
+    const at = slot => (st.slot && st.slot.startsWith(slot) ? picker : "");
+    const board = `<div class="sc-sec"><div class="label">Общие карты</div><div class="sc-row">${st.board.map((c, i) => slotBtn("b:" + i, "Общая карта " + (i + 1))).join("")}</div>${at("b:")}</div>`;
+    const hands = s.players.map(id => { const hd = st.hands[id], p = BH.player(id) || { name: "?", color: "#888" };
+      return `<div class="sc-sec"><div class="sc-who">${BH.avatar(p, "sm")}<b>${esc(p.name)}</b></div>
+        <div class="sc-row">${hd.cards.map((c, i) => slotBtn("p:" + id + ":" + i, p.name + ", карманная " + (i + 1))).join("")}
+          <span class="sc-stars" role="group" aria-label="Красная фишка: ${esc(p.name)}">${Array.from({ length: n }, (_, k) => `<button type="button" class="sc-star" data-act="show-star" data-p="${esc(id)}" data-v="${k + 1}" aria-pressed="${hd.star === k + 1}">${k + 1}★</button>`).join("")}</span></div>
+        ${at("p:" + id + ":")}</div>`; }).join("");
+    const muscleSec = muscle ? `<div class="sc-sec"><div class="label">У кого «Громила»?</div><div class="chips">${s.players.map(id => `<button type="button" class="chip" data-act="show-muscle" data-p="${esc(id)}" aria-pressed="${st.muscle === id}">${esc(pname(id))}</button>`).join("")}</div></div>` : "";
+    const scanSec = muscleSec + (scans.retina ? `<div class="sc-sec"><div class="label">Сканер сетчатки: какое значение назвали?</div><div class="chips">${C.ranks.split("").map(r => `<button type="button" class="chip" data-act="show-retina" data-v="${r}" aria-pressed="${st.retina === r}">${C.rankName(r + "s")}</button>`).join("")}</div></div>` : "")
+      + (scans.finger ? `<div class="sc-sec"><div class="label">Сканер отпечатков: какую комбинацию назвали?</div><div class="chips">${C.cats.map((nm, i) => `<button type="button" class="chip" data-act="show-finger" data-v="${i}" aria-pressed="${st.finger === i}">${esc(nm)}</button>`).join("")}</div></div>` : "");
+    // the verdict: once every card, every chip and the scans are in
+    const empty = showSlots(st).filter(x => !showGet(st, x)).length, noStar = s.players.filter(id => !st.hands[id].star).length;
+    const missing = [empty && `${empty} ${BH.plural(empty, "карту", "карты", "карт")}`, noStar && `красную фишку ${noStar === 1 ? "ещё одному игроку" : `ещё ${noStar} игрокам`}`,
+      muscle && !st.muscle && "у кого «Громила»", scans.retina && !st.retina && "значение для сканера сетчатки", scans.finger && !Number.isInteger(st.finger) && "комбинацию для сканера отпечатков"].filter(Boolean);
+    let verdict = "", foot = "";
+    if (missing.length) verdict = `<p class="small muted sc-left">Осталось отметить: ${esc(missing.join(", "))}.</p>`;
+    else {
+      const r = C.run({ board: st.board, hands: s.players.map(id => ({ id, star: st.hands[id].star, cards: st.hands[id].cards })), retina: st.retina, finger: st.finger, muscle: muscle ? st.muscle : null }, scans);
+      const bad = new Set(r.fails.map(f => f.row.id));
+      const who = x => `${x.star} ★, ${pname(x.id)}`;
+      const why = f => f.kind === "order" ? `«${f.row.name}» (${who(f.row)}) слабее, чем «${f.after.name}» (${who(f.after)})${f.muscle ? `: «Громила» — у ${f.after.star} ★` : f.row.name === f.after.name ? ": решают остальные карты" : ""}.`
+        : f.kind === "retina" ? `Сканер сетчатки: в карманных картах (${who(f.row)}) нет ни одной карты ${C.rankName(st.retina + "s")}.`
+        : `Сканер отпечатков: назвали «${C.cats[st.finger]}», а у ${f.row.star} ★ — «${f.row.name}».`;
+      verdict = `<ol class="sc-hands">${r.rows.map(x => `<li class="${bad.has(x.id) ? "bad" : ""}"><span class="sc-chip">${x.star} ★</span><span class="sc-hn"><b>${esc(pname(x.id))}</b><span>${esc(x.name)}</span></span></li>`).join("")}</ol>
+        <p class="note ${r.ok ? "good" : "bad"} sc-verdict">${r.ok ? `${I.check}<span>Каждая рука не слабее прошлой${scans.retina && scans.finger ? ", сканеры пройдены" : scans.retina || scans.finger ? ", сканер пройден" : ""} — удача.</span>` : `<span>${r.fails.map(f => esc(why(f))).join(" ")} Это провал.</span>`}</p>`;
+      foot = `<button class="btn ${r.ok ? "primary" : "danger"} big" data-act="show-record" data-ok="${r.ok ? 1 : 0}">${r.ok ? I.check : ""}${esc(r.ok ? "Записать удачу" : "Записать провал")}</button>`;
+    }
+    return `<div class="overlay" data-act="overlay-bg"><div class="sheet" role="dialog" aria-modal="true" aria-labelledby="sheet-h">
+      <div class="sheet-head"><div class="sheet-t"><h2 id="sheet-h">Проверка вскрытия</h2></div><button class="icon-btn" data-act="close-sheet" aria-label="Закрыть">${I.x}</button></div>
+      <div class="sheet-body sc-body"><p class="small muted">Отметьте общие карты, карманные карты и красную фишку каждого — приложение сравнит руки по правилам.</p>
+        ${board}${hands}${scanSec}${verdict}</div>
+      ${foot ? `<div class="sheet-foot">${foot}</div>` : ""}
+    </div></div>`;
+  }
+
   function sheetHTML() {
+    if (sheet.kind === "show") return showSheetHTML();
     if (sheet.kind === "one") return oneSheetHTML();
     if (sheet.kind === "pick") return pickSheetHTML();
     if (sheet.kind === "race") return raceSheetHTML();
@@ -2573,21 +2674,28 @@
       /* play */
       case "new-round": openSheet(s, null); break;
       case "edit-round": openSheet(s, +el.dataset.i); break;
-      case "heist": {
-        const g = BH.game(s.gameId), ctx = BH.ctxOf(s), ok = el.dataset.ok === "1";
-        const before = s.coop || g.heist.start(ctx);
-        s.rounds.push({ at: Date.now(), scores: {}, flags: {}, detail: {}, heist: ok ? "ok" : "fail", coop: JSON.parse(JSON.stringify(before)) });
-        const t = BH.coopTally(s);
-        if (t.over) { s.coop = before; finish(s, t.won ? s.players.slice() : []); break; }
-        s.coop = g.heist.next(ctx, before, ok);
-        BH.saveNow(); quiet(); render(); window.scrollTo(0, 0);
-        const n = s.rounds.length;
-        BH.toast(`${g.heist.label} ${n}: ${ok ? g.scoring.okLabel.toLowerCase() : g.scoring.failLabel.toLowerCase()}`, { label: "Отменить", run: () => {
-          const c = BH.session(s.id); if (!c || c.status !== "playing" || sheet || dialog || c.rounds.length !== n) return;
-          const last = c.rounds.pop(); if (last && last.coop) c.coop = last.coop; BH.saveNow(); render();
-        } });
+      case "heist-step": {
+        const g = BH.game(s.gameId), base = s.coop || g.heist.start(BH.ctxOf(s));
+        s.coop = Object.assign({}, base, { step: Math.max(0, Math.min(4, +el.dataset.i)) }); if (!s.coop.step) delete s.coop.step;
+        BH.saveNow(); quiet(); render(); { const h = document.querySelector(".hs-panel"); if (h) h.scrollIntoView({ block: "start" }); }
         break;
       }
+      case "heist": recordHeist(s, el.dataset.ok === "1"); break;
+      case "show-check": openShowCheck(s); break;
+      case "show-slot": if (sheet && sheet.kind === "show") { const st = showState(); st.slot = el.dataset.v; st.rank = null; renderOverlay(); } break;
+      case "show-rank": if (sheet && sheet.kind === "show") { const st = showState(); st.rank = el.dataset.v; renderOverlay(); } break;
+      case "show-suit": if (sheet && sheet.kind === "show") showPut(el.dataset.v); break;
+      case "show-jack": if (sheet && sheet.kind === "show") { const st = showState(); st.rank = "J"; showPut("x"); } break;
+      case "show-clear": if (sheet && sheet.kind === "show") { const st = showState(); showSet(st, st.slot, null); st.rank = null; renderOverlay(); } break;
+      case "show-star": if (sheet && sheet.kind === "show") {
+        const st = showState(), id = el.dataset.p, v = +el.dataset.v, mine = st.hands[id];
+        const other = Object.keys(st.hands).find(o => o !== id && st.hands[o].star === v);
+        if (other) st.hands[other].star = mine.star;   // the chip changes hands: the other one gets this one's chip
+        mine.star = mine.star === v && !other ? null : v; renderOverlay(); } break;
+      case "show-retina": if (sheet && sheet.kind === "show") { const st = showState(); st.retina = st.retina === el.dataset.v ? null : el.dataset.v; renderOverlay(); } break;
+      case "show-muscle": if (sheet && sheet.kind === "show") { const st = showState(); st.muscle = st.muscle === el.dataset.p ? null : el.dataset.p; renderOverlay(); } break;
+      case "show-finger": if (sheet && sheet.kind === "show") { const st = showState(); st.finger = st.finger === +el.dataset.v ? null : +el.dataset.v; renderOverlay(); } break;
+      case "show-record": if (sheet && sheet.kind === "show") { const rs = BH.session(sheet.sid); sheet = null; renderOverlay(); recordHeist(rs, el.dataset.ok === "1"); } break;
       // the card in a slot: one of the stack, chosen from the list (the app suggests the next one, the table may differ)
       case "coop-pick": {
         const g = BH.game(s.gameId), ctx = BH.ctxOf(s), H = g.heist, kind = el.dataset.kind, slot = el.dataset.slot;
@@ -2595,7 +2703,7 @@
         const cur = slot === "perm" ? st.perm[0] : slot === "sp" ? st.sp : slot.startsWith("ch") ? st.ch[+slot.slice(2)] : 0;
         const taken = [...st.perm, ...st.ch].filter(x => x !== cur);
         openDialog({ title: kind === "sp" ? "Какой специалист?" : "Какое испытание?", text: "Номер — в углу карты.", buttons: [{ label: "Отмена", run: closeDialog }],
-          choices: H.choices(ctx, kind).filter(x => kind === "sp" || !taken.includes(x)).map(x => ({ label: `№${x} ${H.cards[kind][x].ru}`, sub: H.cards[kind][x].en, current: x === cur, run: () => {
+          choices: H.choices(ctx, kind).filter(x => kind === "sp" || !taken.includes(x)).map(x => ({ n: x, label: H.cards[kind][x].ru, sub: H.cards[kind][x].en, hint: H.cards[kind][x].line || H.cards[kind][x].steps[0], current: x === cur, run: () => {
             const c = fresh(s), v = Object.assign({ ch: [], sp: 0, perm: [], nCh: 1, nSp: 1 }, c.coop || H.start(ctx));
             if (slot === "perm") v.perm = [x];
             else if (slot === "sp") { v.sp = x; v.nSp = (x % 10) + 1; }
@@ -3034,7 +3142,7 @@
   window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", applyTheme);
 
   /* ---------- start ---------- */
-  BH.version = "0.33.4";
+  BH.version = "0.34.0";
   applyTheme();
   // reloaded while a sheet was open: step off its history entry; a fresh start has nothing before it
   if (history.state && history.state.ov) history.back();

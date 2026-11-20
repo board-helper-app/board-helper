@@ -79,6 +79,63 @@
   // the challenge card «1) Quick Access» is not used in the professional and master thief modes (p. 15)
   const outOfPlay = c => (mode(c) === "pro" || mode(c) === "master" ? [1] : []);
 
+  /* ---------- the showdown counted (pp. 8–12): a hand is the best 5 of the cards, hands compare as in poker ----------
+     a card is a rank and a suit: "Ts" — ranks 2…9, T (10), J, Q, K, A; suits s ♠, h ♥, d ♦, c ♣ (suits are equal, p. 10);
+     "Jx" — the specialist «Jack» (p. 19): a J without a suit, never part of a flush */
+  const RANKS = "23456789TJQKA", SUITS = "shdc", rv = c => RANKS.indexOf(c[0]) + 2;
+  const rn = v => ({ 10: "10", 11: "J", 12: "Q", 13: "K", 14: "A" })[v] || String(v);
+  const CATS = ["Старшая карта", "Пара", "Две пары", "Тройка", "Стрит", "Флеш", "Фулл-хаус", "Каре", "Стрит-флеш", "Роял-флеш"];
+  // five cards: the combination (CATS index) and the values to compare it by, from the most important (p. 10):
+  // pairs and sets first, then the kickers; a straight — its top card (A-2-3-4-5 is a straight to 5, K-A-2-3-4 is none)
+  function eval5(cs) {
+    const v = cs.map(rv).sort((a, b) => b - a), flush = cs[0][1] !== "x" && cs.every(c => c[1] === cs[0][1]);
+    const uniq = new Set(v).size === 5, wheel = uniq && v[0] === 14 && v[1] === 5, straight = uniq && (v[0] - v[4] === 4 || wheel), high = wheel ? 5 : v[0];
+    const cnt = {}; for (const x of v) cnt[x] = (cnt[x] || 0) + 1;
+    const groups = Object.entries(cnt).map(([r, n]) => [n, +r]).sort((a, b) => b[0] - a[0] || b[1] - a[1]), by = groups.map(x => x[1]);
+    if (straight && flush) return { cat: high === 14 ? 9 : 8, tb: [high] };
+    if (groups[0][0] === 4) return { cat: 7, tb: by };
+    if (groups[0][0] === 3 && groups[1][0] === 2) return { cat: 6, tb: by };
+    if (flush) return { cat: 5, tb: v };
+    if (straight) return { cat: 4, tb: [high] };
+    if (groups[0][0] === 3) return { cat: 3, tb: by };
+    if (groups[0][0] === 2 && groups[1][0] === 2) return { cat: 2, tb: by };
+    if (groups[0][0] === 2) return { cat: 1, tb: by };
+    return { cat: 0, tb: v };
+  }
+  // >0 — a is stronger, 0 — the same hand (a full tie, p. 12: their chips may go in any order)
+  const cmpHands = (a, b) => a.cat - b.cat || a.tb.reduce((d, x, i) => d || x - b.tb[i], 0);
+  // the best 5 of 7 or 8 cards
+  function bestHand(cards) {
+    let best = null;
+    const pick = (from, got) => {
+      if (got.length === 5) { const h = eval5(got); if (!best || cmpHands(h, best) > 0) best = Object.assign(h, { five: got.slice() }); return; }
+      for (let i = from; i <= cards.length - (5 - got.length); i++) pick(i + 1, [...got, cards[i]]);
+    };
+    pick(0, []);
+    return best;
+  }
+  const handName = h => {
+    const t = h.tb.map(rn);
+    return [`Старшая карта: ${t[0]}`, `Пара: ${t[0]}`, `Две пары: ${t[0]} и ${t[1]}`, `Тройка: ${t[0]}`, `Стрит до ${t[0]}`,
+      `Флеш, старшая ${t[0]}`, `Фулл-хаус: ${t[0]} и ${t[1]}`, `Каре: ${t[0]}`, `Стрит-флеш до ${t[0]}`, "Роял-флеш"][h.cat];
+  };
+  /* the check: in: { board: 5 cards, hands: [{ id, star, cards }], retina: the value named (a rank letter), finger: the
+     combination named (a CATS index), muscle: who has the specialist «Muscle» }; a hand of every player, the red chips 1…N each once. out: the hands from the lowest
+     star, ok, and why not: a weaker hand after a stronger one (p. 8), or a scan guessed wrong (challenges 4 and 9) */
+  function checkShowdown(input, scans) {
+    const rows = input.hands.map(h => Object.assign({ best: bestHand([...h.cards, ...input.board]) }, h)).sort((a, b) => a.star - b.star);
+    rows.forEach(r => { r.name = handName(r.best); });
+    const muscle = input.muscle || null;
+    const cmp = (a, b) => a.best.cat - b.best.cat || (a.id === muscle ? 1 : b.id === muscle ? -1 : cmpHands(a.best, b.best));
+    let weak = null;
+    for (let i = 1; i < rows.length && !weak; i++) if (cmp(rows[i], rows[i - 1]) < 0) weak = { row: rows[i], after: rows[i - 1], muscle: rows[i - 1].id === muscle };
+    const top = rows[rows.length - 1], fails = [];
+    if (weak) fails.push({ kind: "order", row: weak.row, after: weak.after, muscle: weak.muscle });
+    if (scans.retina) { const hit = !!input.retina && top.cards.some(c => c[0] === input.retina); if (!hit) fails.push({ kind: "retina", row: top }); }
+    if (scans.finger) { const hit = Number.isInteger(input.finger) && input.finger === top.best.cat; if (!hit) fails.push({ kind: "finger", row: top }); }
+    return { rows, ok: !fails.length, fails };
+  }
+
   BH.registerGame({
     id: "thegang",
     name: "The Gang",
@@ -154,6 +211,14 @@
         ];
       },
       // what is active in this heist, from the state kept with the game
+      // the showdown counted: how many pocket cards (challenge 10: three), which scans to check (challenges 4 and 9)
+      check: {
+        pocket: act => (act.some(a => a.kind === "ch" && a.n === 10) ? 3 : 2),
+        scans: act => ({ retina: act.some(a => a.kind === "ch" && a.n === 4), finger: act.some(a => a.kind === "ch" && a.n === 9) }),
+        // the specialists that change the showdown (p. 19): «Jack» — a J without a suit, «Muscle» — its owner beats the same combination
+        jack: act => act.some(a => a.kind === "sp" && a.n === 7), muscle: act => act.some(a => a.kind === "sp" && a.n === 10),
+        run: checkShowdown, best: bestHand, compare: cmpHands, name: handName, cats: CATS, ranks: RANKS, suits: SUITS, rankName: c => rn(rv(c)),
+      },
       active: st => [...(st.perm || []).map(n => ({ kind: "ch", n, perm: true })), ...(st.ch || []).map(n => ({ kind: "ch", n })), ...(st.sp ? [{ kind: "sp", n: st.sp }] : [])],
       // the state at the start of the game
       start: c => {

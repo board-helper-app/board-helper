@@ -126,6 +126,24 @@
         // a cooperative game: the choice of a card, the finish dialog — looked at only, nothing is pressed in them
         if (document.querySelector('[data-act="heist"]')) {
           const cp = document.querySelector('[data-act="coop-pick"]'); if (cp) { cp.click(); await wait(300); out.push(...scan(`${s.id} [выбор карты]`)); await closeOverlay(); }
+          // the heist step by step: every step, then the showdown check filled in — the step is put back afterwards
+          const was = (s.coop && s.coop.step) || 0, steps = document.querySelectorAll('.hs-strip [data-act="heist-step"]').length;
+          for (let i = 0; i < steps; i++) { const b = document.querySelector(`.hs-strip [data-i="${i}"]`); if (b) { b.click(); await wait(250); out.push(...scan(`${s.id} [шаг ограбления ${i + 1}]`)); } }
+          const sc = document.querySelector('[data-act="show-check"]');
+          if (sc) {
+            sc.click(); await wait(300); out.push(...scan(`${s.id} [проверка вскрытия, пусто]`));
+            const deck = ["As", "Kd", "Qh", "Jc", "9s", "2h", "3d", "4c", "5s", "6h", "7d", "8c", "Th", "2s", "3h", "4d", "5c", "6s", "7h", "8d", "9c", "Ts", "2d", "3c", "4s", "5h"];
+            for (const c of deck) {
+              if (!document.querySelector('.overlay .sc-slot[aria-pressed="true"]')) break;
+              document.querySelector(`.overlay [data-act="show-rank"][data-v="${c[0]}"]`).click(); await wait(60);
+              const su = document.querySelector(`.overlay [data-act="show-suit"][data-v="${c[1]}"]`); if (su && !su.disabled) { su.click(); await wait(60); }
+            }
+            for (const [i, id] of s.players.entries()) { const b = document.querySelector(`.overlay [data-act="show-star"][data-p="${id}"][data-v="${i + 1}"]`); if (b) { b.click(); await wait(60); } }
+            for (const k of ["show-retina", "show-finger"]) { const b = document.querySelector(`.overlay [data-act="${k}"]`); if (b) { b.click(); await wait(100); } }
+            out.push(...scan(`${s.id} [проверка вскрытия, итог]`));
+            await closeOverlay();
+          }
+          { const b = document.querySelector(`.hs-strip [data-i="${was}"]`); if (b) { b.click(); await wait(200); } }
           const fm = document.querySelector('[data-act="finish-menu"]'); if (fm) { fm.click(); await wait(300); out.push(...scan(`${s.id} [завершить]`)); await closeOverlay(); }
           continue;
         }

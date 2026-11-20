@@ -643,6 +643,69 @@ console.log(`${passed} passed${process.exitCode ? ", some FAILED" : ""}`);
   console.log(`the gang score: ${passed - before} passed${process.exitCode ? ", some FAILED" : ""}`);
 }
 {
+  // The Gang: the showdown counted — the best 5 of 7 (8) cards, the ranking and equal hands of pp. 9–12, the scans
+  const P = BH.game("thegang").heist.check, before = passed;
+  const h = s => s.split(" ");
+  const best = cards => P.best(h(cards));
+  const stronger = (a, b) => P.compare(best(a), best(b)) > 0;
+  t("the gang showdown: the ranking from the royal flush to the high card (p. 9)", () => {
+    const order = ["Ts Js Qs Ks As", "5h 6h 7h 8h 9h", "7s 7h 7d 7c 2s", "Ks Kh Kd 7c 7s", "2d 6d 9d Jd Kd", "5s 6h 7d 8c 9s", "Qs Qh Qd 4c 2s", "Ks Kh 4d 4c 9s", "Ks Kh 8d 4c 2s", "As Jh 8d 4c 2s"];
+    order.forEach((x, i) => assert.strictEqual(best(x).cat, 9 - i, x));
+    for (let i = 1; i < order.length; i++) assert.ok(stronger(order[i - 1], order[i]), order[i - 1] + " > " + order[i]);
+    assert.strictEqual(P.name(best("Ks Kh 4d 4c 9s")), "Две пары: K и 4");
+    assert.strictEqual(P.name(best("Ts Js Qs Ks As")), "Роял-флеш");
+  });
+  t("the gang showdown: the ace in a straight — A-2-3-4-5 or 10-J-Q-K-A, never K-A-2-3-4 (p. 10)", () => {
+    assert.strictEqual(best("As 2h 3d 4c 5s").cat, 4); assert.strictEqual(P.name(best("As 2h 3d 4c 5s")), "Стрит до 5");
+    assert.ok(stronger("2s 3h 4d 5c 6s", "As 2h 3d 4c 5s"), "a straight to 6 beats the wheel");
+    assert.strictEqual(best("Ks As 2d 3c 4s").cat, 0, "K-A-2-3-4 is no straight");
+  });
+  t("the gang showdown: equal combinations by value, then the kickers; full house by the set, two pairs by the higher pair (p. 10)", () => {
+    assert.ok(stronger("Ks Kh Ad 7c 2s", "Kd Kc Qd 7h 2h"), "pair of kings: the ace kicker wins");
+    assert.ok(stronger("Ks Kh 4d 4c 2s", "Kd Kc 3d 3h As"), "two pairs: the lower pair before the fifth card");
+    assert.ok(stronger("3s 3h 3d 2c 2s", "2d 2h 2c As Ad"), "full house: the set first");
+    assert.ok(stronger("Ad 9d 7d 4d 2d", "Ah 9h 6h 5h 3h"), "flush: the third card decides");
+    assert.ok(stronger("7s 7h 7d 7c 3s", "7s 7h 7d 7c 2s"), "four of a kind: the fifth card");
+    assert.strictEqual(P.compare(best("Ks Kh 8d 4c 2s"), best("Kd Kc 8h 4h 2h")), 0, "suits are equal");
+  });
+  t("the gang showdown: the best 5 of 7, of 8 with three pocket cards; a full tie — any order of their chips (p. 12)", () => {
+    assert.strictEqual(best("9h 8h 2c 3d 5h 7h 6h").cat, 8, "a straight flush hidden in 7 cards"); assert.strictEqual(best("9h 8h 2c 3d Kh 7h 6h").cat, 5, "five hearts without a run: a flush");
+    assert.strictEqual(best("Ah Ad As 2c 2d 9h Kc 3s").cat, 6, "8 cards: the best five");
+    const board = h("2s 2h As Ts 7d"), run = (hands, x) => P.run(Object.assign({ board, hands }, x || {}), { retina: false, finger: false });
+    const r = run([{ id: "a", star: 2, cards: h("3c 4d") }, { id: "b", star: 1, cards: h("5c 6d") }]);
+    assert.ok(r.ok, "both play 2-2-A-10-7 from the table: the chips 1 and 2 count in any order");
+    assert.deepStrictEqual([...r.rows.map(x => x.id)], ["b", "a"], "from the lowest star");
+    const bad = run([{ id: "a", star: 1, cards: h("Ad Kc") }, { id: "b", star: 2, cards: h("3c 4d") }, { id: "c", star: 3, cards: h("Tc Td") }]);
+    assert.ok(!bad.ok); assert.strictEqual(bad.fails[0].kind, "order"); assert.strictEqual(bad.fails[0].row.id, "b", "a pair of twos from the table after a pair of aces: weaker");
+  });
+  t("the gang showdown: the scans — the value in the pocket of the highest red chip (4), its combination (9)", () => {
+    const board = h("2s 2h As Ts 7d"), hands = [{ id: "a", star: 1, cards: h("3c 4d") }, { id: "b", star: 2, cards: h("Kc Kd") }];
+    const run = (x, sc) => P.run(Object.assign({ board, hands }, x), sc);
+    assert.ok(run({ retina: "K" }, { retina: true }).ok); assert.ok(!run({ retina: "A" }, { retina: true }).ok, "the ace is on the table, not in the pocket");
+    assert.ok(run({ finger: 2 }, { finger: true }).ok, "two pairs, kings and twos"); assert.ok(!run({ finger: 1 }, { finger: true }).ok);
+    const act = n => [{ kind: "ch", n }];
+    assert.strictEqual(P.pocket(act(10)), 3); assert.strictEqual(P.pocket(act(4)), 2);
+    assert.deepStrictEqual({ ...P.scans(act(9)) }, { retina: false, finger: true });
+  });
+  t("the gang showdown: the specialists — «Jack» is a J without a suit, «Muscle» beats the same combination (p. 19)", () => {
+    assert.strictEqual(best("Jx 9h 7h 4h 2h 3c Kd").cat, 0, "four hearts and the Jack: no flush");
+    assert.strictEqual(best("Jx 9h 7h 4h 2h 5h Kd").cat, 5, "five hearts without it: a flush");
+    assert.strictEqual(best("Jx Ts 9h 8d 7c 2s 3h").cat, 4, "the Jack in a straight");
+    assert.strictEqual(P.name(best("Jx Js Jh Jd Jc 2s")), "Каре: J");
+    // the book's example: Arsène 2-2-J-8-7 with Muscle, Doris 2-2-A-8-7, Trudy 8-8-K-7-3, Danny 7-7-7-8-2 → Doris, Trudy, Arsène, Danny
+    const board = h("2s 8h 7d 3c 4s");
+    const hands = (stars) => [{ id: "arsene", cards: h("2h Jc") }, { id: "doris", cards: h("2d Ad") }, { id: "trudy", cards: h("8s Kh") }, { id: "danny", cards: h("7h 7c") }].map(x => Object.assign(x, { star: stars[x.id] }));
+    const ok = P.run({ board, hands: hands({ doris: 1, trudy: 2, arsene: 3, danny: 4 }), muscle: "arsene" }, { retina: false, finger: false });
+    assert.ok(ok.ok, "Muscle: Arsène's pair is the strongest pair, three sevens still beat it");
+    const bad = P.run({ board, hands: hands({ arsene: 1, doris: 2, trudy: 3, danny: 4 }), muscle: "arsene" }, { retina: false, finger: false });
+    assert.ok(!bad.ok && bad.fails[0].row.id === "doris" && bad.fails[0].muscle, "a pair after the Muscle's pair is weaker, and the reason says so");
+    assert.ok(P.run({ board, hands: hands({ arsene: 1, doris: 2, trudy: 3, danny: 4 }) }, { retina: false, finger: false }).ok, "without Muscle the twos with a jack come first");
+    const act = n => [{ kind: "sp", n }];
+    assert.ok(P.jack(act(7)) && !P.jack(act(10)) && P.muscle(act(10)));
+  });
+  console.log(`the gang showdown: ${passed - before} passed${process.exitCode ? ", some FAILED" : ""}`);
+}
+{
   // Crokinole: the Russian rules (Crowd Games), NCA 2026, Crokinole Canada, Crok Shop, the World Championship (docs/rules-check.md)
   const K = BH.game("crokinole"), before = passed;
   const cx = (n, opt) => ({ players: n, exp: new Set(), has: () => false, opt: id => id === opt });

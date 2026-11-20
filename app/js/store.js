@@ -34,7 +34,9 @@
     if (!c || typeof c !== "object" || Array.isArray(c)) return null;
     const card = v => (Number.isInteger(v) && v >= 1 && v <= 10 ? v : 0);
     const list = (v, max) => (Array.isArray(v) ? [...new Set(v.map(card).filter(Boolean))].slice(0, max) : []);
-    return { ch: list(c.ch, 2), sp: card(c.sp), perm: list(c.perm, 1), nCh: card(c.nCh) || 1, nSp: card(c.nSp) || 1 };
+    // step: where the heist is — 0–3 the rounds of chips, 4 the showdown
+    return { ch: list(c.ch, 2), sp: card(c.sp), perm: list(c.perm, 1), nCh: card(c.nCh) || 1, nSp: card(c.nSp) || 1,
+      ...(Number.isInteger(c.step) && c.step > 0 && c.step <= 4 ? { step: c.step } : {}) };
   }
   function cleanSel(d) {
     if (!isObj(d)) return null;

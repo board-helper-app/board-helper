@@ -831,8 +831,54 @@ body:has(.setup-screen.tight) .topbar{display:none}
 .rank-list span{color:var(--muted)}
 .coop-bar .btn.danger{flex:1;min-width:0}
 .dlg-choices{margin-top:10px}
+/* The Gang: the heist step by step — a strip of steps, the current one open */
+.hs-strip{display:grid;grid-template-columns:repeat(4,minmax(0,1fr)) auto;gap:5px;margin:4px 0 12px}
+.hs-chip{display:inline-flex;align-items:center;gap:3px;min-height:38px;min-width:0;justify-content:center;padding:0 8px;border-radius:999px;border:1px solid var(--line);background:none;color:var(--ink);font:inherit;font-weight:600;cursor:pointer}
+.hs-chip svg{flex:none;width:14px;height:14px;fill:none;stroke:currentColor;stroke-width:2.6;stroke-linecap:round;stroke-linejoin:round}
+.hs-chip.done{background:var(--good-soft);border-color:transparent;color:var(--good)}
+.hs-chip[aria-selected="true"]{background:var(--accent-soft);border-color:var(--accent);color:var(--accent)}
+.hs-title{font-size:18px;margin:0 0 6px}
+.hs-chips{margin-top:10px;border-top:1px solid var(--line);padding-top:8px}
+.hs-chips summary{cursor:pointer;color:var(--muted);font-weight:600}
+.hs-next{margin-top:14px;margin-bottom:4px}
+.hs-next svg{width:18px;height:18px}
+/* The Gang: the showdown check — card places, a keypad of values and suits, the red chips, the verdict */
+.sc-body .sc-sec{margin-top:14px}
+.sc-row{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-top:6px}
+.sc-who{display:flex;align-items:center;gap:8px;min-width:0}
+.sc-who b{overflow-wrap:anywhere}
+.sc-slot{width:44px;height:58px;border-radius:8px;border:1.5px dashed var(--line);background:var(--surface);color:var(--ink);font:inherit;font-weight:700;font-size:17px;cursor:pointer}
+.sc-slot:not(:empty){border-style:solid;background:var(--surface)}
+.sc-slot[aria-pressed="true"]{border:2px solid var(--accent);background:var(--accent-soft)}
+.sc-slot.red,.sc-suit.red{color:var(--bad)}
+.sc-stars{display:inline-flex;flex-wrap:wrap;gap:4px;margin-left:auto}
+.sc-star{min-width:40px;height:36px;border-radius:999px;border:1px solid var(--line);background:none;color:var(--ink);font:inherit;font-weight:600;cursor:pointer}
+.sc-star[aria-pressed="true"]{background:var(--bad);border-color:var(--bad);color:var(--surface)}
+.sc-pick{margin-top:8px;padding:10px;border-radius:12px;background:var(--sunk)}
+.sc-ranks{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:5px}
+.sc-suits{display:flex;gap:5px;margin-top:6px}
+.sc-key{height:40px;border-radius:8px;border:1px solid var(--line);background:var(--surface);color:var(--ink);font:inherit;font-weight:700;font-size:16px;cursor:pointer;min-width:0}
+.sc-suit{flex:1;font-size:22px}
+.sc-clear{flex:1.4;font-size:14px}
+.sc-jack{width:100%;margin-top:6px;font-size:14px}
+.sc-key[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.sc-key:disabled{opacity:.35;cursor:default}
+.sc-hands{list-style:none;margin:16px 0 0;padding:0;display:grid;gap:6px}
+.sc-hands li{display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:10px;background:var(--sunk)}
+.sc-hands li.bad{background:var(--bad-soft)}
+.sc-chip{flex:none;padding:2px 8px;border-radius:999px;background:var(--bad);color:var(--surface);font-weight:700;font-size:14px}
+.sc-hn{display:flex;flex-direction:column;min-width:0}
+.sc-hn b{overflow-wrap:anywhere}
+.sc-verdict{margin-top:10px;display:flex;gap:8px;align-items:flex-start}
+.sc-verdict svg{flex:none;width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:2.6;stroke-linecap:round;stroke-linejoin:round}
+.note.bad{background:var(--bad-soft)}
 .dlg-choice{width:100%;text-align:left;background:none;border:0;cursor:pointer;color:inherit}
-.dlg-choice[aria-pressed="true"]{background:var(--sunk);border-radius:10px}
+.dlg-choice[aria-pressed="true"]{background:var(--accent-soft);border-radius:10px;padding-left:8px;padding-right:8px}
+/* a numbered choice (The Gang: the card number in its corner) and what the card does */
+.dlg-n{flex:none;align-self:flex-start;min-width:32px;height:32px;padding:0 6px;border-radius:9px;background:var(--sunk);color:var(--ink);font-family:var(--f-display);font-weight:700;font-size:16px;display:grid;place-items:center}
+.dlg-choice[aria-pressed="true"] .dlg-n{background:var(--accent);color:var(--accent-ink)}
+.list .dlg-choice .t>.dlg-hint{display:block;margin-top:3px;font-size:14px;line-height:1.35;color:var(--ink)}
+.list .dlg-choice .dlg-hint b{display:inline;white-space:nowrap;color:color-mix(in srgb,var(--accent) 80%,var(--ink));font-weight:700}
 /* the heist bar on a narrow phone: four buttons — tighter, the check mark goes */
 .coop-bar{gap:6px}
 .coop-bar .btn{padding-left:12px;padding-right:12px}
