@@ -473,7 +473,8 @@
       lastPlayers: visiblePlayers(last ? last.players : []),
       opts: {}, final: {}, winners: [],
     };
-    draft.step = nextStep();
+    const g0 = BH.game(gid);
+    draft.step = g0 && g0.expansions.length ? "exp" : nextStep();
   }
   const draftCtx = () => ({ players: draft.players.length, exp: new Set(draft.exp), has: id => draft.exp.includes(id), opt: id => !!draft.opts[id] });
   const draftPast = () => !draft.editId && draft.date < Date.now() - PAST_MS;
@@ -507,7 +508,9 @@
       draft.exp = last && last.gameId === id ? last.exp.slice() : [];
       if (!draft.editId) draft.lastPlayers = visiblePlayers(last ? last.players : []);
     }
-    draft.step = nextStep();
+    // a game with expansions: they are the next step
+    const pg = BH.game(id);
+    draft.step = pg && pg.expansions.length ? "exp" : nextStep();
   }
   // the first step that still needs something: the game, then the players until there are as many
   // as the game is meant for (a game that allows one player still opens the list), else none
@@ -552,9 +555,13 @@
         ${coverOf(x, "mini")}<span class="t"><b>${esc(x.name)}</b>${meta([[IC.people, playersRange(x), "Игроков"], x.time && [IC.clock, esc(x.time), "Время партии"]], "plain")}</span>
         ${x.id === draft.gameId ? `<span class="pick-on">${I.check}</span>` : ""}</button>`).join("")}</div>
       ${BH.games.length > 1 ? `<button type="button" class="btn ghost sm" data-act="draft-random">${IC.dice}Случайная игра</button>` : ""}`;
-    const expBody = g && g.expansions.length ? `<div class="label" style="margin-top:6px">Дополнения</div><div class="chips">${g.expansions.map(e => `<button class="chip" data-act="toggle-exp" data-id="${e.id}" aria-pressed="${draft.exp.includes(e.id)}">${esc(e.name)}</button>`).join("")}</div>` : "";
-    const gameSum = g ? `${coverOf(g, "sum-cover")}${esc(g.name)}${draft.exp.length ? " + " + draft.exp.length + " " + BH.plural(draft.exp.length, "дополнение", "дополнения", "дополнений") : ""}` : '<span class="warn-t">Не выбрана</span>';
-    const gameSec = step2("game", "Игра", gameSum, gameBody + expBody, !!g);
+    const gameSum = g ? `${coverOf(g, "sum-cover")}${esc(g.name)}` : '<span class="warn-t">Не выбрана</span>';
+    const gameSec = step2("game", "Игра", gameSum, gameBody, !!g);
+    // the expansions: a step of their own, right after the game
+    const expSec = g && g.expansions.length ? step2("exp", "Дополнения", draft.exp.length ? esc(expNames({ exp: draft.exp }, g).join(", ")) : "Без дополнений",
+      `<p class="small muted">Отметьте дополнения, с которыми играете.</p>
+      <div class="chips">${g.expansions.map(e => `<button class="chip" data-act="toggle-exp" data-id="${e.id}" aria-pressed="${draft.exp.includes(e.id)}">${esc(e.name)}</button>`).join("")}</div>
+      <div class="row" style="justify-content:flex-end;margin-top:10px"><button type="button" class="btn sm" data-act="exp-next">Дальше</button></div>`, true) : "";
 
     // place: the usual ones first
     const places = S().places.slice().sort((a, b) => playsOf("place", b.id) - playsOf("place", a.id));
@@ -654,7 +661,7 @@
     const back = draft.editId ? backLink("#/s/" + draft.editId + "/setup", "Подготовка") : backToOrigin("Отмена");
     return `<div class="stack">
       <div>${back}<div class="page-head"><div><h1>${draft.editId ? "Партия" : past ? "Сыгранная партия" : "Новая партия"}</h1></div></div></div>
-      <div class="stepper">${dateSec}${gameSec}${placeSec}${playersSec}${orderSec}${modeSec}${resultSec}</div>
+      <div class="stepper">${dateSec}${gameSec}${expSec}${placeSec}${playersSec}${orderSec}${modeSec}${resultSec}</div>
       <div class="sticky-foot">${problem ? `<p class="foot-hint" id="foot-hint" role="status">${esc(problem)}</p>` : ""}<button class="btn primary big block" data-act="draft-save" ${problem ? 'disabled aria-describedby="foot-hint"' : ""}>${label}</button></div>
     </div>`;
   }
@@ -1205,14 +1212,14 @@
       </div>`);
   }
 
-  /* a game of one mini-game (Dobble): the mini-games first (choose one, read its setup), how to play, the rules;
+  /* a game of one mini-game (Dobble) or of one goal (Jackal): how to play first, then the mini-games or tiles, the rules;
      at the bottom — the result: which mini-game, how many cards each has */
   function viewPlayOne(s, g) {
     const how = g.rounds.reminder ? `<section class="panel"><div class="sec-h"><h2>${esc(g.rounds.title || "Как играть")}</h2></div><div class="reminder">${stepsHTML(g.rounds.reminder, g.id)}${afterHTML(afterOf(g, BH.ctxOf(s), 1, 1), g.id)}</div></section>` : "";
     const cardsHtml = cardsPanel(s, g);
     return playShell(s, g, [
+      how && { id: "how", label: g.rounds.title || "Как играть", html: how },
       cardsHtml && { id: "cards", label: g.cardsTab || "Карты", html: cardsHtml },
-      { id: "how", label: g.rounds.title || "Как играть", html: how },
       rulesTab(s, g),
     ], `<div class="game-bar">
         ${askBtn()}
@@ -2630,6 +2637,8 @@
         break;
       }
       case "draft-now": draft.date = Date.now(); render(); break;
+      case "exp-next": if (draft) { draft.step = nextStep(); quiet(); render();
+        if (draft.step) { refocus('[data-act="draft-step"][data-step="' + draft.step + '"]'); const n = BH.$("#step-" + draft.step); if (n) n.scrollIntoView({ block: "nearest" }); } } break;
       case "draft-random": {   // a random game from the collection that fits the players already chosen
         const n = draft.players.length, fits = BH.games.filter(x => !n || (n >= x.players.min && n <= x.players.max));
         if (!fits.length) { BH.toast(`Нет игр на ${n} ${BH.plural(n, "игрока", "игроков", "игроков")}`); break; }
@@ -3214,7 +3223,7 @@
   window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", applyTheme);
 
   /* ---------- start ---------- */
-  BH.version = "0.37.0";
+  BH.version = "0.37.1";
   applyTheme();
   // reloaded while a sheet was open: step off its history entry; a fresh start has nothing before it
   if (history.state && history.state.ov) history.back();
