@@ -899,3 +899,5 @@ body:has(.setup-screen.tight) .topbar{display:none}
 .art:has(.dobble-plate){background:#f5eaff}
 
 .art:has(.ribbit-plate){background:#edffb8}
+
+.art:has(.toybattle-plate){background:#f5f6ed}

@@ -1092,7 +1092,7 @@ console.log(`${passed} passed${process.exitCode ? ", some FAILED" : ""}`);
     for (const f of G.faq) { assert.ok(ids.has(f.ref), "faq ref " + f.ref); if (f.src) assert.ok(BH.FAQ_SRC[f.src], "faq src " + f.src); }
     assert.ok(G.rules.every(r => (Number.isInteger(r.page) && r.page >= 1 && r.page <= 6) || r.page === "памятка"));
     const grouped = G.ruleGroups.flatMap(gr => gr.ids); for (const id of ids) assert.strictEqual(grouped.filter(x => x === id).length, 1, "rule in one group: " + id);
-    for (const k of Object.keys(G.images.rules)) assert.ok(ids.has(k), "image for " + k);
+    for (const card of G.cards) assert.ok(/games\/toybattle-art\/(troop|base)-/.test(card.art), "original aid picture for " + card.id);
   });
   console.log(`toybattle: ${passed - before} passed${process.exitCode ? ", some FAILED" : ""}`);
 }
