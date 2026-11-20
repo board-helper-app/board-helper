@@ -620,7 +620,7 @@ console.log(`${passed} passed${process.exitCode ? ", some FAILED" : ""}`);
     for (const gr of G.ruleGroups) for (const id of gr.ids) assert.ok(ids.has(id), "group " + id);
     for (const gr of G.faqGroups) for (const id of gr.refs) assert.ok(ids.has(id), "faq group " + id);
     for (const f of G.faq) assert.ok(ids.has(f.ref), "faq ref " + f.ref);
-    for (const k of Object.keys(G.images.rules)) assert.ok(ids.has(k), "image for " + k);
+    for (const cards of Object.values(G.heist.cards)) for (const card of Object.values(cards)) assert.ok(card.art.includes("games/thegang-art/"), "original card artwork");
     assert.ok(G.rules.every(r => r.page >= 2 && r.page <= 19), "pages of the printed book");
     const grouped = new Set(G.ruleGroups.flatMap(gr => gr.ids)); for (const id of ids) assert.ok(grouped.has(id), "rule in a group: " + id);
     assert.strictEqual(G.ranking.length, 10, "ten hand rankings (p. 9)");

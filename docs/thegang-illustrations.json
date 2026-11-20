@@ -1,0 +1,199 @@
+{
+  "version": "0.35.1",
+  "sources": [
+    "https://thamesandkosmos.com/products/the-gang",
+    "https://cdn.shopify.com/s/files/1/0104/6331/3977/files/683887_TheGang_Manual-Web_051624.pdf?v=1780594213",
+    "https://cdn.shopify.com/s/files/1/0104/6331/3977/files/683887_TheGang_images_051624.zip?v=1780594214"
+  ],
+  "approvedScenes": [
+    "vaults",
+    "shuffle-deal",
+    "chips",
+    "silence",
+    "preflop",
+    "flop",
+    "turn",
+    "river",
+    "best-five",
+    "showdown",
+    "result",
+    "goal",
+    "advanced",
+    "next-heist",
+    "pro",
+    "master"
+  ],
+  "originalCards": "20 exact crops of the English publisher manual; text is not regenerated",
+  "cover": "Original 683887_GoldGang-Front.jpg from the publisher presskit",
+  "exceptions": "Round diagrams show the basic case and are hidden with active challenge/specialist effects; master setup uses the two-alarm plate.",
+  "assets": {
+    "vaults": [
+      768,
+      512
+    ],
+    "shuffle-deal": [
+      768,
+      512
+    ],
+    "chips": [
+      768,
+      512
+    ],
+    "silence": [
+      768,
+      512
+    ],
+    "preflop": [
+      768,
+      512
+    ],
+    "flop": [
+      768,
+      512
+    ],
+    "turn": [
+      768,
+      512
+    ],
+    "river": [
+      768,
+      512
+    ],
+    "best-five": [
+      768,
+      512
+    ],
+    "showdown": [
+      768,
+      512
+    ],
+    "result": [
+      768,
+      512
+    ],
+    "goal": [
+      768,
+      512
+    ],
+    "advanced": [
+      768,
+      512
+    ],
+    "next-heist": [
+      768,
+      512
+    ],
+    "pro": [
+      768,
+      512
+    ],
+    "master": [
+      768,
+      512
+    ],
+    "challenge-1": [
+      375,
+      525
+    ],
+    "challenge-2": [
+      375,
+      525
+    ],
+    "challenge-3": [
+      375,
+      525
+    ],
+    "challenge-4": [
+      375,
+      525
+    ],
+    "challenge-5": [
+      375,
+      525
+    ],
+    "challenge-6": [
+      375,
+      525
+    ],
+    "challenge-7": [
+      375,
+      525
+    ],
+    "challenge-8": [
+      375,
+      525
+    ],
+    "challenge-9": [
+      375,
+      525
+    ],
+    "challenge-10": [
+      375,
+      525
+    ],
+    "specialist-1": [
+      375,
+      525
+    ],
+    "specialist-2": [
+      375,
+      525
+    ],
+    "specialist-3": [
+      375,
+      525
+    ],
+    "specialist-4": [
+      375,
+      525
+    ],
+    "specialist-5": [
+      375,
+      525
+    ],
+    "specialist-6": [
+      375,
+      525
+    ],
+    "specialist-7": [
+      375,
+      525
+    ],
+    "specialist-8": [
+      375,
+      525
+    ],
+    "specialist-9": [
+      375,
+      525
+    ],
+    "specialist-10": [
+      375,
+      525
+    ],
+    "aid-gameplay": [
+      360,
+      484
+    ],
+    "aid-ranking": [
+      563,
+      788
+    ],
+    "materials": [
+      720,
+      412
+    ],
+    "ranking": [
+      720,
+      810
+    ],
+    "values": [
+      720,
+      182
+    ],
+    "cover": [
+      1439,
+      2000
+    ]
+  }
+}
