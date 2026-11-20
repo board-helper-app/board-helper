@@ -182,7 +182,9 @@
     return picked;
   };
   // the stones or cards of a race shown for this game (some are left out by an option)
-  BH.raceCards = (g, s) => (g && g.cards ? g.cards.filter(k => !k.show || k.show(BH.ctxOf(s))) : []);
+  // a card may depend on the game: shown only with an expansion (k.show), its tag counted from the expansions chosen (k.tag(ctx))
+  BH.raceCards = (g, s) => { if (!g || !g.cards) return []; const ctx = BH.ctxOf(s);
+    return g.cards.filter(k => !k.show || k.show(ctx)).map(k => (typeof k.tag === "function" ? Object.assign({}, k, { tag: k.tag(ctx) }) : k)); };
   // a race written down with each player's cups and coconuts: a full pyramid wins; otherwise the most coconuts
   // (equal — all of them, unless it is known who played last)
   BH.raceWinner = (g, players, cups, counts) => {

@@ -756,7 +756,7 @@
   // the game of a session as a card: cover, name, and its facts as chips — place, date, add-ons, the mode
   function sessionHero(s, g, isTitle) {
     const place = BH.place(s.placeId);
-    const exp = s.exp.map(id => (g.expansions.find(e => e.id === id) || {}).name).filter(Boolean);
+    const exp = expNames(s, g);
     const modes = (g.options || []).filter(o => s.opts && s.opts[o.id]);
     const name = isTitle ? `<h1 class="sess-hero-n">${esc(g.name)}</h1>` : `<b class="sess-hero-n">${esc(g.name)}</b>`;
     return `<div class="sess-hero">${coverOf(g, "mini")}<div class="sess-hero-t">${name}${meta([
@@ -766,6 +766,9 @@
       ...modes.map(o => [IC.bolt, esc(o.short || o.label), "Режим игры", "accent"]),
     ])}</div></div>`;
   }
+  // the expansions of a game in one short line: their short names, or «5 дополнений» when there are many
+  const expNames = (s, g) => { const list = g.expansions.filter(e => s.exp.includes(e.id));
+    return list.length > 2 ? [list.length + " " + BH.plural(list.length, "дополнение", "дополнения", "дополнений")] : list.map(e => e.short || e.name); };
   const deleteBtn = `<button class="icon-btn" data-act="delete-session" aria-label="Удалить партию" title="Удалить партию">${I.trash}</button>`;
 
   /* setup: one step per screen — its picture, title and text fit above the button (fitSetup sizes the
@@ -967,7 +970,7 @@
   function playShell(s, g, tabs, bar) {
     tabs = tabs.filter(Boolean);
     const cur = pickTab(tabs, playTab[s.id]);
-    const exp = s.exp.map(id => (g.expansions.find(e => e.id === id) || {}).name).filter(Boolean);
+    const exp = expNames(s, g);
     const facts = exp.concat((g.options || []).filter(op => s.opts && s.opts[op.id]).map(op => op.short || op.label));
     return tabScreen({ back: originOf(), pic: coverOf(g, "mini"), title: g.name,
       sub: facts.length ? `<span class="phead-f">${IC.bolt}<span>${esc(facts.join(" · "))}</span></span>` : "",
@@ -2280,17 +2283,17 @@
     const winner = r.top.length === 1 ? r.top[0] : r.top.includes(sheet.win) ? sheet.win : null;
     // more on the table than there is in the game (Jackal: 16 coins) — a typo, nothing is recorded until it is fixed
     const total = fixed && fixed.total ? fixed.total(BH.ctxOf(s)) : null, sum = s.players.reduce((a, id) => a + (Number.isInteger(sheet.counts[id]) ? sheet.counts[id] : 0), 0);
-    const O = g.scoring.one, tooMany = !!fixed && !!O.max && s.players.some(id => sheet.counts[id] > O.max);
+    const most = fixed && fixed.most ? fixed.most(BH.ctxOf(s)) : total, tooMany = most !== null && most !== undefined && s.players.some(id => sheet.counts[id] > most);
     const over = tooMany || (total !== null && sum > total);
     const empty = !!fixed && r.top.length > 0 && r.best === 0;
     const winners = over || empty ? [] : winner ? [winner] : fixed && fixed.share && r.top.length > 1 ? r.top : [];
-    return Object.assign(r, { s, g, fixed, total, sum, over, tooMany, empty, k: sheet.mini ? BH.miniOf(g, sheet.mini) : fixed, winner: winners.length === 1 ? winners[0] : null, winners });
+    return Object.assign(r, { s, g, fixed, total, most, sum, over, tooMany, empty, k: sheet.mini ? BH.miniOf(g, sheet.mini) : fixed, winner: winners.length === 1 ? winners[0] : null, winners });
   };
   function oneResHTML() {
     const st = oneState(), O = st.g.scoring.one, k = st.k;
     const unit = n => BH.plural(n, ...O.unit);
     const sumLine = st.total !== null && (st.sum || st.top.length) ? `<p class="small ${st.over ? "note" : "muted"}" style="margin-top:8px">На кораблях ${st.sum} из ${st.total}${st.over ? ` — больше, чем есть в игре. Проверьте числа.` : "."}</p>` : "";
-    if (k && st.tooMany) return `<p class="small note" style="margin-top:8px">В игре всего ${O.max} ${unit(O.max)} — у одного игрока больше не бывает. Проверьте числа.</p>`;
+    if (k && st.tooMany) return `<p class="small note" style="margin-top:8px">В игре всего ${st.most} ${unit(st.most)} — у одного игрока больше не бывает. Проверьте числа.</p>`;
     if (!k || !st.top.length) return k ? (st.over ? sumLine : `<p class="small muted">Впишите число у каждого — приложение определит победителя.</p>${sumLine}`) : "";
     const names = ids => (ids.length > 1 ? ids.slice(0, -1).map(pname).join(", ") + " и " + pname(ids[ids.length - 1]) : ids.map(pname).join(""));
     if (st.over) return sumLine;
@@ -3211,7 +3214,7 @@
   window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", applyTheme);
 
   /* ---------- start ---------- */
-  BH.version = "0.36.0";
+  BH.version = "0.37.0";
   applyTheme();
   // reloaded while a sheet was open: step off its history entry; a fresh start has nothing before it
   if (history.state && history.state.ov) history.back();

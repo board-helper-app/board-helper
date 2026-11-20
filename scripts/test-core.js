@@ -1358,6 +1358,22 @@ console.log(`${passed} passed${process.exitCode ? ", some FAILED" : ""}`);
     assert.ok(!cards.some(k => /медвед|банк|пушк|конь/i.test(k.name)), "no bear, bank, cannon or horse in the 2020 box");
     assert.ok(BH.searchRules(G, "можно ли бить пирата с монетой?").some(hit => hit.id === "coin"));
   });
+  t("jackal: the five expansions add their tiles to the aid and to the big island", () => {
+    assert.deepStrictEqual(Array.from(G.expansions, e => e.id), ["tides", "roger", "friday", "caves", "gunn"]);
+    const n = k => Number(k.tag.split(" ")[0]), all = { ...session, exp: ["tides", "roger", "friday", "caves", "gunn"] };
+    const per = { tides: 12, roger: 12, friday: 12, caves: 12, gunn: 11 };   // the lists of jackal.su, the reissued expansions
+    for (const [id, k] of Object.entries(per)) assert.strictEqual(BH.raceCards(G, { ...session, exp: [id] }).reduce((a, c) => a + n(c), 0), 55 + k, id);
+    const cards = BH.raceCards(G, all);
+    assert.strictEqual(cards.reduce((a, c) => a + n(c), 0), 114);
+    for (const id of ["horse", "gun", "tangled", "wheel", "cave", "cart", "friday", "gunn", "turtle", "palm", "spyglass", "tide"]) assert.ok(cards.some(c => c.id === id), id);
+    assert.match(cards.find(c => c.id === "cave").note, /тысячи пещер/);
+    assert.match(cards.find(c => c.id === "horse").note, /дополнений.*Роджера.*Пятницы/);
+    assert.strictEqual(n(cards.find(c => c.id === "maze")), 11);
+    assert.ok(!BH.raceCards(G, session).some(c => c.id === "palm"), "no palm without the Island of Tides");
+    assert.match(BH.setupSteps(all)[1].text, /все 114/);
+    assert.strictEqual(BH.raceCards(G, { ...all, opts: { isl1: true } }).reduce((a, c) => a + n(c), 0), 55, "an island of the book takes the box's tiles only");
+    assert.strictEqual(BH.oneFixed(G).total(BH.ctxOf(all)), null, "the expansions add chests: no check against 16");
+  });
   t("jackal: the result is the coins of each; the most wins, equal coins share the win", () => {
     assert.ok(BH.isOne(G, BH.ctxOf(session)), "no option needed for the coins sheet");
     assert.strictEqual(BH.oneFixed(G).goal, "most");
