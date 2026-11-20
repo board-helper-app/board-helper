@@ -64,8 +64,11 @@
   // a round with one winner and nothing to count (Dobble: who won the mini-game) — a point to the winner
   BH.isPick = g => !!(g && g.scoring && g.scoring.pick);
   /* a game of one mini-game (Dobble with the option «single»): which one was played and how many cards each has; the winner
-     follows the goal of that mini-game. Kept as a finished game with s.mini and the cards in s.final */
-  BH.isOne = (g, ctx) => !!(g && g.scoring && g.scoring.one && ctx && ctx.opt(g.scoring.one.opt));
+     follows the goal of that mini-game. Kept as a finished game with s.mini and the cards in s.final.
+     A game with one goal and no mini-games to choose (Jackal: the most coins on the ship) has scoring.one.fixed — the goal
+     itself; its counts are the game's score (s.final, no s.mini), equal best counts share the win when fixed.share */
+  BH.isOne = (g, ctx) => !!(g && g.scoring && g.scoring.one && ctx && (!g.scoring.one.opt || ctx.opt(g.scoring.one.opt)));
+  BH.oneFixed = g => (g && g.scoring && g.scoring.one && g.scoring.one.fixed) || null;
   BH.miniOf = (g, id) => ((g && g.cards) || []).find(k => k.id === id) || null;
   // the fewest wins: the game's rule, or the goal of the mini-game a game of one mini-game was
   BH.lowerWinsOf = s => {
@@ -74,7 +77,7 @@
   };
   // the result of one mini-game from the cards: the best count and who has it; one of them — the winner
   BH.oneResult = (g, mini, players, counts) => {
-    const k = BH.miniOf(g, mini), filled = players.filter(id => Number.isInteger(counts[id]));
+    const k = mini ? BH.miniOf(g, mini) : BH.oneFixed(g), filled = players.filter(id => Number.isInteger(counts[id]));
     if (!k || filled.length < players.length) return { filled: filled.length, top: [], best: null };
     const best = k.goal === "fewest" ? Math.min(...players.map(id => counts[id])) : Math.max(...players.map(id => counts[id]));
     return { filled: filled.length, best, top: players.filter(id => counts[id] === best) };

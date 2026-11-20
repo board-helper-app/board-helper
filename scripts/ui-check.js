@@ -158,10 +158,15 @@
         }
         // one mini-game (Dobble): the result sheet with every count equal (a tie: who won the duel) — looked at only, nothing is saved
         if (document.querySelector('[data-act="one-open"]')) {
+          // the tiles or mini-games of the game: one of them opened
+          const ct = document.querySelector('[data-act="play-tab"][data-tab="cards"]'); if (ct) { ct.click(); await wait(300); out.push(...scan(`${s.id} [вкладка карт]`)); }
+          const mc = document.querySelector('[data-act="mc-open"]'); if (mc) { mc.click(); await wait(300); out.push(...scan(`${s.id} [карта]`)); await closeOverlay(); }
           document.querySelector('[data-act="one-open"]').click(); await wait(300);
           const mini = document.querySelector('.overlay [data-act="one-mini"]'); if (mini) { mini.click(); await wait(300); }
-          for (const inp of document.querySelectorAll('.overlay [data-act="one-count"]')) { inp.value = "12"; inp.dispatchEvent(new Event("input", { bubbles: true })); }
-          await wait(200); out.push(...scan(`${s.id} [итог мини-игры, поровну]`));
+          const fill = async (vals, where) => { [...document.querySelectorAll('.overlay [data-act="one-count"]')].forEach((inp, i) => { inp.value = String(vals[i % vals.length]); inp.dispatchEvent(new Event("input", { bubbles: true })); }); await wait(200); out.push(...scan(`${s.id} [${where}]`)); };
+          await fill([12], "итог, поровну");
+          // one goal and no mini-games (Jackal): a shared win, then one winner, then more coins than the game has
+          if (!mini) { await fill([6, 6, 2, 1], "итог, общая победа"); await fill([5, 7, 3, 1], "итог, один победитель"); await fill([9, 9, 9, 9], "итог, больше чем в игре"); }
           await closeOverlay();
           const fm = document.querySelector('[data-act="finish-menu"]'); if (fm) { fm.click(); await wait(300); out.push(...scan(`${s.id} [завершить]`)); await closeOverlay(); }
           continue;

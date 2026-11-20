@@ -625,7 +625,7 @@
           <input class="input score-in ph-word" type="number" inputmode="numeric" data-act="draft-final-pair" data-p="${sd.join(",")}" value="${draft.final[sd[0]] ?? ""}" placeholder="очки" aria-label="Очки: ${esc(nm(sd))}"></div>`).join("")}
         <div class="label" style="margin:12px 0 6px">Победители</div>
         <div class="chips">${pairs.map(sd => `<button class="chip" data-act="draft-winner-pair" data-p="${sd.join(",")}" aria-pressed="${sd.every(id => draft.winners.includes(id))}">${esc(nm(sd))}</button>`).join("")}</div>`, !!wonPair || draft.final[pairs[0][0]] !== undefined);
-    } else if (past && g && cnt && g.scoring && g.scoring.one) {
+    } else if (past && g && cnt && g.scoring && g.scoring.one && !BH.oneFixed(g)) {
       // one mini-game (the cards of each, the winner by its goal), or several (who won the game)
       const O = g.scoring.one, k = BH.miniOf(g, draft.mini), many = draft.mini === "many", wn = draft.winners.filter(id => draft.players.includes(id));
       const chip = (v, label) => `<button type="button" class="chip" data-act="draft-one-mini" data-v="${esc(v)}" aria-pressed="${draft.mini === v}">${esc(label)}</button>`;
@@ -640,10 +640,11 @@
         !!k || wn.length > 0);
     } else if (past && g && cnt) {
       const scored = draft.players.filter(id => draft.final[id] !== undefined && draft.final[id] !== "").length;
-      resultSec = step2("result", "Итог", draft.winners.length ? "Победа: " + esc(draft.winners.map(id => (BH.player(id) || { name: "?" }).name).join(", ")) : scored ? "Очки вписаны" : "Очки и победитель — по желанию",
-        `<p class="small muted">Очки можно не вписывать. Победителя приложение определит по очкам — или отметьте его сами.</p>${g.scoring && g.scoring.tieHint ? `<p class="note info small">${esc(g.scoring.tieHint)}</p>` : ""}
+      const ptsWord = (BH.oneFixed(g) && g.scoring.one.word) || "очки", cap = t => t.charAt(0).toUpperCase() + t.slice(1);
+      resultSec = step2("result", "Итог", draft.winners.length ? "Победа: " + esc(draft.winners.map(id => (BH.player(id) || { name: "?" }).name).join(", ")) : scored ? cap(ptsWord) + " вписаны" : cap(ptsWord) + " и победитель — по желанию",
+        `<p class="small muted">${esc(cap(ptsWord))} можно не вписывать. Победителя приложение определит по ним — или отметьте его сами.</p>${g.scoring && (g.scoring.tieHint || (BH.oneFixed(g) && g.scoring.one.tieHint)) ? `<p class="note info small">${esc(g.scoring.tieHint || g.scoring.one.tieHint)}</p>` : ""}
         ${draft.players.map(id => { const p = BH.player(id) || { name: "?", color: "#888" }; return `<div class="seat" style="grid-template-columns:auto minmax(0,1fr) auto">${BH.avatar(p, "sm")}<span>${esc(p.name)}</span>
-          <input class="input score-in ph-word" type="number" inputmode="numeric" data-act="draft-final" data-p="${id}" value="${draft.final[id] ?? ""}" placeholder="очки" aria-label="Очки: ${esc(p.name)}"></div>`; }).join("")}
+          <input class="input score-in ph-word" type="number" inputmode="numeric" data-act="draft-final" data-p="${id}" value="${draft.final[id] ?? ""}" placeholder="${esc(ptsWord)}" aria-label="${esc(cap(ptsWord))}: ${esc(p.name)}"></div>`; }).join("")}
         <div class="label" style="margin:12px 0 6px">Победитель</div>
         <div class="chips">${draft.players.map(id => { const p = BH.player(id) || { name: "?" }; return `<button class="chip" data-act="draft-winner" data-id="${id}" aria-pressed="${draft.winners.includes(id)}">${esc(p.name)}</button>`; }).join("")}</div>`, draft.winners.length > 0 || scored > 0);
     }
@@ -690,7 +691,7 @@
         if (Object.keys(counts).length) { const top = BH.raceResult(s.players, counts).top; winners = top.length === 1 ? top : winners.filter(id => top.includes(id)).slice(0, 1); if (!winners.length) winners = top; }
         if (how) s.race = Object.keys(counts).length ? { how, counts } : { how };
       }
-      const oneK = g.scoring && g.scoring.one && BH.miniOf(g, draft.mini);
+      const oneK = g.scoring && g.scoring.one && !BH.oneFixed(g) && BH.miniOf(g, draft.mini);
       if (oneK) {
         s.mini = oneK.id;
         const all = s.players.every(id => Number.isInteger((draft.oneCounts || {})[id]));
@@ -1264,11 +1265,12 @@
     const team = BH.isTeamGame(s), sidesW = BH.sidesOf(s).filter(sd => sd.some(id => s.winners.includes(id)));
     const sideName = sd => sd.map(id => (BH.player(id) || { name: "?" }).name).join(" и ");
     const title = team ? (sidesW.length > 1 ? "Ничья" : sidesW.length ? "Победа: " + esc(sideName(sidesW[0])) : "Партия окончена")
-      : w.length > 1 ? "Ничья: " + esc(w.map(p => p.name).join(" и ")) : w.length ? "Победа: " + esc(w[0].name) : "Партия окончена";
+      : w.length > 1 ? (BH.oneFixed(g) && BH.oneFixed(g).share ? "Общая победа: " : "Ничья: ") + esc(w.map(p => p.name).join(" и ")) : w.length ? "Победа: " + esc(w[0].name) : "Партия окончена";
     const hasBust = !!(g.calc && g.calc.flags && g.calc.flags.some(f => f.id === "bust"));
     const fn = g.finishNote && g.finishNote(s), note = fn ? (typeof fn === "string" ? { text: fn, ok: true } : fn) : null;
-    const mk = s.mini && BH.miniOf(g, s.mini);
+    const mk = s.mini && BH.miniOf(g, s.mini), fixed = BH.oneFixed(g);
     const more = (mk ? `<p class="win-s">«${esc(mk.name)}» — цель: ${esc(mk.tag)}</p>`
+      : fixed ? (durOf(s) ? "" : `<p class="win-s">Записана после игры</p>`)
       : s.rounds.length || s.finalDetail ? "" : `<p class="win-s">Записана после игры, без ${BH.roundW(g).gen}</p>`) +
       (note ? `<p class="note podium-note ${note.ok ? "good" : ""}">${note.ok ? I.check : IC.bolt}<span>${esc(note.text)}</span></p>` : "");
     const places = `<section class="panel"><h2 style="margin-bottom:6px">Итог</h2>
@@ -1301,7 +1303,7 @@
       pad && { id: "pad", label: "Подсчёт", html: pad },
       !BH.isEndScored(g) && s.rounds.length && { id: "rounds", label: BH.roundW(g).tab, n: BH.isPick(g) ? 0 : s.rounds.length, html: `<section class="panel"><h2 style="margin-bottom:6px">${BH.roundW(g).tab}</h2>${BH.isPick(g) ? pickHistory(s, g, false) : roundsTable(s, g, false)}</section>` },
       byPlayers && { id: "players", label: "По игрокам", html: byPlayers },
-    ], !!(s.rounds.length || s.finalDetail || (s.mini && durOf(s))));
+    ], !!(s.rounds.length || s.finalDetail || ((s.mini || fixed) && durOf(s))));
   }
 
   /* ---------- games catalogue ---------- */
@@ -1746,7 +1748,7 @@
     if (BH.isRace(g)) return `идёт игра, игроков ${s.players.length}`;
     if (BH.isEndScored(g)) { const last = g.rounds.count || 8; return `раунд ${Math.min(s.rounds.length + 1, last)} из ${last}, игроков ${s.players.length}, слава считается в конце`; }
     const tot = Object.values(BH.totals(s)), best = tot.length ? Math.max(...tot) : 0;
-    if (BH.isOne(g, BH.ctxOf(s))) return `одна мини-игра, игроков ${s.players.length}`;
+    if (BH.isOne(g, BH.ctxOf(s))) return `${g.scoring.one.summary || "одна мини-игра"}, игроков ${s.players.length}`;
     return BH.isPick(g) ? `мини-игра ${s.rounds.length + 1}, игроков ${s.players.length}, больше всех побед ${best}` : `раунд ${s.rounds.length + 1}, игроков ${s.players.length}, лучший счёт ${best}`;
   }
   function openAsk(gameId, sid) {
@@ -2268,21 +2270,33 @@
      fewest cards), equal ones — who won the duel. After «Вернуться к партии» the sheet opens with the mini-game and the
      cards written before (who won a duel is asked again: going back clears the winners) */
   function openOneSheet(s) {
-    const counts = {};
-    if (s.mini && s.final) for (const id of s.players) if (Number.isInteger(s.final[id])) counts[id] = s.final[id];
-    sheet = { kind: "one", sid: s.id, mini: s.mini || null, counts, win: s.mini ? s.winners[0] || null : null };
+    const counts = {}, fixed = BH.oneFixed(BH.game(s.gameId));
+    if ((s.mini || fixed) && s.final) for (const id of s.players) if (Number.isInteger(s.final[id])) counts[id] = s.final[id];
+    sheet = { kind: "one", sid: s.id, mini: s.mini || null, counts, win: s.mini && !fixed ? s.winners[0] || null : null };
     BH.clearToast(); ovOpen(); renderOverlay();
   }
   const oneState = () => {
-    const s = BH.session(sheet.sid), g = BH.game(s.gameId), r = BH.oneResult(g, sheet.mini, s.players, sheet.counts);
-    return Object.assign(r, { s, g, k: BH.miniOf(g, sheet.mini), winner: r.top.length === 1 ? r.top[0] : r.top.includes(sheet.win) ? sheet.win : null });
+    const s = BH.session(sheet.sid), g = BH.game(s.gameId), r = BH.oneResult(g, sheet.mini, s.players, sheet.counts), fixed = BH.oneFixed(g);
+    const winner = r.top.length === 1 ? r.top[0] : r.top.includes(sheet.win) ? sheet.win : null;
+    // more on the table than there is in the game (Jackal: 16 coins) — a typo, nothing is recorded until it is fixed
+    const total = fixed && fixed.total ? fixed.total(BH.ctxOf(s)) : null, sum = s.players.reduce((a, id) => a + (Number.isInteger(sheet.counts[id]) ? sheet.counts[id] : 0), 0);
+    const O = g.scoring.one, tooMany = !!fixed && !!O.max && s.players.some(id => sheet.counts[id] > O.max);
+    const over = tooMany || (total !== null && sum > total);
+    const empty = !!fixed && r.top.length > 0 && r.best === 0;
+    const winners = over || empty ? [] : winner ? [winner] : fixed && fixed.share && r.top.length > 1 ? r.top : [];
+    return Object.assign(r, { s, g, fixed, total, sum, over, tooMany, empty, k: sheet.mini ? BH.miniOf(g, sheet.mini) : fixed, winner: winners.length === 1 ? winners[0] : null, winners });
   };
   function oneResHTML() {
     const st = oneState(), O = st.g.scoring.one, k = st.k;
-    if (!k || !st.top.length) return k ? `<p class="small muted">Впишите число у каждого — приложение определит победителя.</p>` : "";
-    const names = ids => (ids.length > 1 ? ids.slice(0, -1).map(pname).join(", ") + " и " + pname(ids[ids.length - 1]) : ids.map(pname).join(""));
     const unit = n => BH.plural(n, ...O.unit);
-    if (st.top.length === 1) return `<p class="small race-auto">${k.goal === "fewest" ? "Меньше всех" : "Больше всех"} ${O.unit[2]}: ${esc(pname(st.top[0]))} — ${st.best}. Это победа.</p>`;
+    const sumLine = st.total !== null && (st.sum || st.top.length) ? `<p class="small ${st.over ? "note" : "muted"}" style="margin-top:8px">На кораблях ${st.sum} из ${st.total}${st.over ? ` — больше, чем есть в игре. Проверьте числа.` : "."}</p>` : "";
+    if (k && st.tooMany) return `<p class="small note" style="margin-top:8px">В игре всего ${O.max} ${unit(O.max)} — у одного игрока больше не бывает. Проверьте числа.</p>`;
+    if (!k || !st.top.length) return k ? (st.over ? sumLine : `<p class="small muted">Впишите число у каждого — приложение определит победителя.</p>${sumLine}`) : "";
+    const names = ids => (ids.length > 1 ? ids.slice(0, -1).map(pname).join(", ") + " и " + pname(ids[ids.length - 1]) : ids.map(pname).join(""));
+    if (st.over) return sumLine;
+    if (st.empty) return `<p class="small muted">У всех по нулю — впишите, сколько ${esc(O.unit[2])} у каждого.</p>`;
+    if (st.top.length === 1) return `<p class="small race-auto">${k.goal === "fewest" ? "Меньше всех" : "Больше всех"} ${O.unit[2]}: ${esc(pname(st.top[0]))} — ${st.best}. Это победа.</p>${sumLine}`;
+    if (st.fixed && st.fixed.share) return `<p class="small race-auto">Поровну — ${st.best} ${unit(st.best)}: ${esc(names(st.top))}. Это общая победа.</p><p class="small muted" style="margin-top:8px">${esc(O.tieHint)}</p>${sumLine}`;
     const ask = k.tieAsk || (st.top.length === 2 ? O.duel : O.potato);
     return `<p class="small race-auto">Поровну — ${st.best} ${unit(st.best)}: ${esc(names(st.top))}.</p>
       <div class="label" style="margin:12px 0 6px">${esc(ask)}</div>
@@ -2294,23 +2308,23 @@
     return `<div class="overlay" data-act="overlay-bg"><div class="sheet" role="dialog" aria-modal="true" aria-labelledby="sheet-h">
       <div class="sheet-head"><div class="sheet-t"><h2 id="sheet-h">Итог партии</h2></div><button class="icon-btn" data-act="close-sheet" aria-label="Закрыть">${I.x}</button></div>
       <div class="sheet-body">
-        <div class="label" style="margin:0 0 6px">${esc(O.what)}</div>
-        <div class="chips">${BH.raceCards(g, s).map(x => `<button type="button" class="chip" data-act="one-mini" data-v="${esc(x.id)}" aria-pressed="${sheet.mini === x.id}">${esc(x.name.replace(/­/g, ""))}</button>`).join("")}</div>
-        ${k ? `<div class="label" style="margin:14px 0 4px">${esc(O.count)}</div><p class="small muted" style="margin-bottom:6px">${esc(k.count)} Побеждает тот, у кого ${k.goal === "fewest" ? "меньше" : "больше"} всех.</p>
+        ${st.fixed ? "" : `<div class="label" style="margin:0 0 6px">${esc(O.what)}</div>
+        <div class="chips">${BH.raceCards(g, s).map(x => `<button type="button" class="chip" data-act="one-mini" data-v="${esc(x.id)}" aria-pressed="${sheet.mini === x.id}">${esc(x.name.replace(/­/g, ""))}</button>`).join("")}</div>`}
+        ${k ? `<div class="label" style="margin:${st.fixed ? 0 : 14}px 0 4px">${esc(O.count)}</div><p class="small muted" style="margin-bottom:6px">${esc(k.count)} Побеждает тот, у кого ${k.goal === "fewest" ? "меньше" : "больше"} всех.</p>
           ${s.players.map(id => { const p = BH.player(id) || { name: "?", color: "#888" }; return `<div class="race-row">${BH.avatar(p, "sm")}<span class="race-nm">${esc(p.name)}</span>
-            <input class="input score-in" type="number" inputmode="numeric" min="0" max="55" data-act="one-count" data-p="${esc(id)}" value="${sheet.counts[id] ?? ""}" placeholder="—" aria-label="${esc(O.unit[2] + ": " + p.name)}"></div>`; }).join("")}` : ""}
+            <input class="input score-in" type="number" inputmode="numeric" min="0" max="${O.max || 55}" data-act="one-count" data-p="${esc(id)}" value="${sheet.counts[id] ?? ""}" placeholder="—" aria-label="${esc(O.unit[2] + ": " + p.name)}"></div>`; }).join("")}` : ""}
         <div id="one-res">${oneResHTML()}</div>
       </div>
-      <div class="sheet-foot"><button class="btn primary big" data-act="one-save" ${st.winner ? "" : "disabled"}>${I.check}Записать итог</button></div>
+      <div class="sheet-foot"><button class="btn primary big" data-act="one-save" ${st.winners.length ? "" : "disabled"}>${I.check}Записать итог</button></div>
     </div></div>`;
   }
   function saveOne() {
-    const st = oneState(); if (!st.winner) return;
+    const st = oneState(); if (!st.winners.length) return;
     const s = st.s;
-    s.mini = sheet.mini;
+    if (st.fixed) delete s.mini; else s.mini = sheet.mini;
     s.final = Object.fromEntries(s.players.map(id => [id, sheet.counts[id]]));
     sheet = null;
-    finish(s, [st.winner]);
+    finish(s, st.winners);
   }
 
   function openCoopPick(s, kind, slot) {
@@ -2788,7 +2802,8 @@
       case "finish-menu": {
         if (BH.isRace(BH.game(s.gameId))) { openRaceEnd(s); break; }
         if (BH.isOne(BH.game(s.gameId), BH.ctxOf(s))) {
-          openDialog({ title: "Завершить партию?", text: `Запишите, какую мини-игру сыграли и сколько ${BH.game(s.gameId).scoring.one.unit[2]} у каждого: победителя приложение определит само.`, buttons: [
+          const O1 = BH.game(s.gameId).scoring.one;
+          openDialog({ title: "Завершить партию?", text: O1.endText || `Запишите, какую мини-игру сыграли и сколько ${O1.unit[2]} у каждого: победителя приложение определит само.`, buttons: [
             { label: "Записать итог", primary: true, run: () => { dialog = null; openOneSheet(s); } },
             { label: "Удалить партию", danger: true, run: () => confirmDelete(s) },
             { label: "Продолжить игру", run: closeDialog }] });
@@ -3058,7 +3073,7 @@
       const st = oneState();
       if (!st.top.includes(sheet.win)) sheet.win = null;
       const res = overlayRoot.querySelector("#one-res"), btn = overlayRoot.querySelector('[data-act="one-save"]');
-      if (res) res.innerHTML = oneResHTML(); if (btn) btn.disabled = !oneState().winner;
+      if (res) res.innerHTML = oneResHTML(); if (btn) btn.disabled = !oneState().winners.length;
       return;
     }
     if (el.dataset.act === "race-count" && sheet && sheet.kind === "race") {
@@ -3196,7 +3211,7 @@
   window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", applyTheme);
 
   /* ---------- start ---------- */
-  BH.version = "0.35.2";
+  BH.version = "0.36.0";
   applyTheme();
   // reloaded while a sheet was open: step off its history entry; a fresh start has nothing before it
   if (history.state && history.state.ov) history.back();

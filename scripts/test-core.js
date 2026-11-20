@@ -9,7 +9,7 @@ const ctx = {
 };
 ctx.window = ctx;
 vm.createContext(ctx);
-for (const f of ["js/util.js", "js/store.js", "js/games.js", "js/chances.js", "js/art.js", "games/flip7.js", "games/flip7v.js", "games/faraway.js", "games/thegang.js", "games/crokinole.js", "games/coconuts.js", "games/goldfever.js", "games/zoo.js", "games/toybattle.js", "games/dobble.js", "games/ribbit.js"])
+for (const f of ["js/util.js", "js/store.js", "js/games.js", "js/chances.js", "js/art.js", "games/flip7.js", "games/flip7v.js", "games/faraway.js", "games/thegang.js", "games/crokinole.js", "games/coconuts.js", "games/goldfever.js", "games/zoo.js", "games/toybattle.js", "games/dobble.js", "games/ribbit.js", "games/jackal.js"])
   vm.runInContext(fs.readFileSync(path.join(__dirname, "..", "app", f), "utf8"), ctx, { filename: f });
 const BH = ctx.BH, g = BH.game("flip7");
 let passed = 0;
@@ -1332,4 +1332,56 @@ console.log(`${passed} passed${process.exitCode ? ", some FAILED" : ""}`);
     assert.strictEqual(BH.agoText(now - 10 * day, now), "меньше месяца назад");
   });
   console.log(`forgotten: ${passed - before} passed${process.exitCode ? ", some FAILED" : ""}`);
+}
+{
+  // Jackal: Archipelago (2020): the island of all tiles or of the book, 55 tiles of the box, the most coins on the ship wins
+  const G = BH.game("jackal"), before = passed;
+  const session = { id: "jackal1", gameId: G.id, players: ["a", "b", "c"], exp: [], opts: {}, rounds: [] };
+  t("jackal: a big island of all 55 tiles by default; the islands of the book take away mountains, forests and beaches", () => {
+    assert.deepStrictEqual([G.players.min, G.players.max], [2, 4]);
+    const big = BH.setupSteps(session);
+    assert.deepStrictEqual(Array.from(big, x => x.id), ["crews", "island", "ships", "bank"]);
+    assert.match(big[1].text, /все 55/);
+    const isl = n => BH.setupSteps({ ...session, opts: { ["isl" + n]: true } });
+    assert.match(isl(1)[1].text, /\*4\* клетки гор.*\*3\* — леса.*\*2\* — пляжа/);   // p. 5: 4 mountains, 3 forests, 2 beaches
+    assert.match(isl(3)[1].text, /\*6\* клеток гор.*\*5\* — леса.*\*4\* — пляжа/);   // p. 14: one more of each for every island added
+    assert.match(isl(1)[2].text, /стр\. 5/);
+    assert.match(isl(2)[2].text, /стр\. 18/);
+    assert.match(G.first.hint, /самый младший/);
+  });
+  t("jackal: the tile aid is the 2020 box — 55 tiles, coins in 9 chests", () => {
+    const cards = BH.raceCards(G, session), n = k => Number(k.tag.split(" ")[0]);
+    assert.strictEqual(cards.reduce((a, k) => a + n(k), 0), 55);
+    assert.strictEqual(new Set(cards.map(k => k.id)).size, cards.length);
+    assert.strictEqual(n(cards.find(k => k.id === "coins")), 9);
+    assert.match(cards.find(k => k.id === "coins").does, /\*16\* монет/);
+    assert.ok(!cards.some(k => /медвед|банк|пушк|конь/i.test(k.name)), "no bear, bank, cannon or horse in the 2020 box");
+    assert.ok(BH.searchRules(G, "можно ли бить пирата с монетой?").some(hit => hit.id === "coin"));
+  });
+  t("jackal: the result is the coins of each; the most wins, equal coins share the win", () => {
+    assert.ok(BH.isOne(G, BH.ctxOf(session)), "no option needed for the coins sheet");
+    assert.strictEqual(BH.oneFixed(G).goal, "most");
+    assert.strictEqual(BH.oneFixed(G).total(BH.ctxOf(session)), 16, "a big island holds all 16 coins");
+    assert.strictEqual(BH.oneFixed(G).total(BH.ctxOf({ ...session, opts: { isl2: true } })), null, "an island of the book may lose chests");
+    const r = BH.oneResult(G, null, session.players, { a: 5, b: 7, c: 3 });
+    assert.deepStrictEqual([r.best, Array.from(r.top)], [7, ["b"]]);
+    assert.deepStrictEqual(Array.from(BH.oneResult(G, null, session.players, { a: 6, b: 6, c: 2 }).top), ["a", "b"]);
+    assert.strictEqual(BH.oneResult(G, null, session.players, { a: 6, b: 6 }).top.length, 0, "not everyone typed yet");
+    const stored = BH._normalize({ players: [{ id: "a", name: "Аня" }, { id: "b", name: "Боря" }, { id: "c", name: "Вика" }],
+      sessions: [{ ...session, status: "finished", winners: ["a", "b"], final: { a: 6, b: 6, c: 2 } }] }).sessions[0];
+    assert.ok(BH.hasScore(stored, "c"), "the coins are the game's score");
+    assert.ok(!stored.mini);
+    assert.strictEqual(JSON.stringify(BH.standings(stored).map(x => [x.id, x.place, x.total])), JSON.stringify([["a", 1, 6], ["b", 1, 6], ["c", 3, 2]]));
+  });
+  t("jackal: the turn follows the book; one word for each thing", () => {
+    const rule = id => G.rules.find(r => r.id === id).body;
+    assert.match(rule("coin"), /только одну монету/);
+    assert.match(rule("coin"), /монета пропадает/);
+    assert.match(rule("ship"), /сколько на нём пиратов, или меньше/);
+    assert.match(rule("end"), /книга не говорит/);
+    assert.match(G.rounds.reminder.join(" "), /Бить можно только с пустыми руками/);
+    const texts = JSON.stringify([G.rules, G.faq, G.rounds, Array.from(BH.raceCards(G, session), c => c.does)]).replace(/keys":"[^"]*"/g, "");
+    assert.ok(!/золот|тайл|фишк[аи] пират|сокровищ/i.test(texts), "монеты, клетки, пираты — as in the book");
+  });
+  console.log(`jackal: ${passed - before} passed${process.exitCode ? ", some FAILED" : ""}`);
 }
