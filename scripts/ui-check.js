@@ -133,14 +133,22 @@
           const sc = document.querySelector('[data-act="show-check"]');
           if (sc) {
             sc.click(); await wait(300); out.push(...scan(`${s.id} [проверка вскрытия, пусто]`));
+            // step by step: the table, then each hand — whose chip, what the scans named, the cards; a scan at every step
             const deck = ["As", "Kd", "Qh", "Jc", "9s", "2h", "3d", "4c", "5s", "6h", "7d", "8c", "Th", "2s", "3h", "4d", "5c", "6s", "7h", "8d", "9c", "Ts", "2d", "3c", "4s", "5h"];
-            for (const c of deck) {
-              if (!document.querySelector('.overlay .sc-slot[aria-pressed="true"]')) break;
-              document.querySelector(`.overlay [data-act="show-rank"][data-v="${c[0]}"]`).click(); await wait(60);
-              const su = document.querySelector(`.overlay [data-act="show-suit"][data-v="${c[1]}"]`); if (su && !su.disabled) { su.click(); await wait(60); }
+            let di = 0;
+            for (let guard = 0; guard < 60; guard++) {
+              if (document.querySelector('.overlay [data-act="show-record"]')) break;
+              const who = document.querySelector('.overlay [data-act="show-who"][aria-pressed="false"]'), noneWho = !document.querySelector('.overlay [data-act="show-who"][aria-pressed="true"]');
+              if (who && noneWho) { who.click(); await wait(80); out.push(...scan(`${s.id} [проверка вскрытия, рука]`)); continue; }
+              const ms = document.querySelector('.overlay [data-act="show-muscle"]'); if (ms && !document.querySelector('.overlay [data-act="show-muscle"][aria-pressed="true"]')) { ms.click(); await wait(80); continue; }
+              let asked = false;
+              for (const k of ["show-retina", "show-finger"]) if (document.querySelector(`.overlay [data-act="${k}"]`) && !document.querySelector(`.overlay [data-act="${k}"][aria-pressed="true"]`)) { document.querySelector(`.overlay [data-act="${k}"]`).click(); await wait(80); asked = true; }
+              if (asked) continue;
+              if (!document.querySelector('.overlay .sc-slot[aria-pressed="true"]') || di >= deck.length) break;
+              const c = deck[di++];
+              document.querySelector(`.overlay [data-act="show-rank"][data-v="${c[0]}"]`).click(); await wait(50);
+              const su = document.querySelector(`.overlay [data-act="show-suit"][data-v="${c[1]}"]`); if (su && !su.disabled) { su.click(); await wait(50); }
             }
-            for (const [i, id] of s.players.entries()) { const b = document.querySelector(`.overlay [data-act="show-star"][data-p="${id}"][data-v="${i + 1}"]`); if (b) { b.click(); await wait(60); } }
-            for (const k of ["show-retina", "show-finger"]) { const b = document.querySelector(`.overlay [data-act="${k}"]`); if (b) { b.click(); await wait(100); } }
             out.push(...scan(`${s.id} [проверка вскрытия, итог]`));
             await closeOverlay();
           }

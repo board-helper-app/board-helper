@@ -2313,11 +2313,6 @@
     finish(s, [st.winner]);
   }
 
-  /* The Gang: the showdown checked by the app (pp. 8–12) — the 5 common cards and the pocket cards of each typed in by taps
-     (a value, then a suit; the next empty place opens by itself), the red chip of each, what the scans named. The cards are
-     kept while the heist goes on (not saved: the next heist starts empty). The verdict offers to record the heist */
-  const showChecks = {};
-  const SUIT = { s: "♠", h: "♥", d: "♦", c: "♣" };
   function openCoopPick(s, kind, slot) {
         const g = BH.game(s.gameId), ctx = BH.ctxOf(s), H = g.heist;
         const st = Object.assign({ ch: [], sp: 0, perm: [], nCh: 1, nSp: 1 }, s.coop || H.start(ctx));
@@ -2357,70 +2352,111 @@
           const last = c.rounds.pop(); if (last && last.coop) c.coop = last.coop; BH.saveNow(); render();
         } });
   }
+  /* The Gang: the showdown checked by the app (pp. 8–12), step by step as at the table: the 5 common cards (and who has
+     «Громила»), then 1 ★ — whose chip it is and the pocket cards, then 2 ★ … Each hand is compared at once with the one
+     before: the first weaker hand stops the check (the rest need not be typed); before the last hand — what the scans
+     named. Cards by taps: a value, then a suit; the next empty place opens by itself, a full step moves on by itself.
+     Done steps stay on top with their combination lit; a tap goes back to one. Kept while the heist goes on (not saved) */
+  const showChecks = {};
+  const SUIT = { s: "♠", h: "♥", d: "♦", c: "♣" };
   function openShowCheck(s) {
     const g = BH.game(s.gameId), C = g.heist.check, act = g.heist.active(s.coop || g.heist.start(BH.ctxOf(s))), pocket = C.pocket(act);
     let st = showChecks[s.id];
     if (!st || st.pocket !== pocket || st.heist !== s.rounds.length || Object.keys(st.hands).join() !== s.players.join())
-      st = showChecks[s.id] = { heist: s.rounds.length, pocket, board: Array(5).fill(null), retina: null, finger: null, rank: null, slot: "b:0",
-        hands: Object.fromEntries(s.players.map(id => [id, { star: null, cards: Array(pocket).fill(null) }])) };
+      st = showChecks[s.id] = { heist: s.rounds.length, pocket, board: Array(5).fill(null), order: [], cur: 0, retina: null, finger: null, muscle: null, rank: null, slot: "b:0",
+        hands: Object.fromEntries(s.players.map(id => [id, Array(pocket).fill(null)])) };
     sheet = { kind: "show", sid: s.id }; BH.clearToast(); ovOpen(); renderOverlay();
   }
   const showState = () => showChecks[sheet.sid];
-  const showSlots = st => [...st.board.map((c, i) => "b:" + i), ...Object.keys(st.hands).flatMap(id => st.hands[id].cards.map((c, i) => "p:" + id + ":" + i))];
-  const showGet = (st, slot) => { const [k, a, b] = slot.split(":"); return k === "b" ? st.board[+a] : st.hands[a].cards[+b]; };
-  const showSet = (st, slot, v) => { if (!slot) return; const [k, a, b] = slot.split(":"); if (k === "b") st.board[+a] = v; else st.hands[a].cards[+b] = v; };
+  const showCtx = () => { const s = BH.session(sheet.sid), g = BH.game(s.gameId), H = g.heist, act = H.active(s.coop || H.start(BH.ctxOf(s)));
+    return { s, g, C: H.check, scans: H.check.scans(act), jack: H.check.jack(act), muscle: H.check.muscle(act), n: s.players.length }; };
+  // the places of a step: the board (step 0) or the pocket cards of the player of the step (k ★)
+  const showSlots = (st, k) => (k === 0 ? st.board.map((c, i) => "b:" + i) : st.order[k - 1] ? st.hands[st.order[k - 1]].map((c, i) => "p:" + st.order[k - 1] + ":" + i) : []);
+  const showAll = st => [...st.board, ...Object.values(st.hands).flat()];
+  const showGet = (st, slot) => { const [k, a, b] = slot.split(":"); return k === "b" ? st.board[+a] : st.hands[a][+b]; };
+  const showSet = (st, slot, v) => { if (!slot) return; const [k, a, b] = slot.split(":"); if (k === "b") st.board[+a] = v; else st.hands[a][+b] = v; };
+  // is a step complete: the board (and who has «Громила»); a hand (and, for the last one, what the scans named)
+  const showDone = (st, k, x) => k === 0 ? st.board.every(Boolean) && (!x.muscle || !!st.muscle)
+    : !!st.order[k - 1] && st.hands[st.order[k - 1]].every(Boolean) && (k < x.n || ((!x.scans.retina || !!st.retina) && (!x.scans.finger || Number.isInteger(st.finger))));
+  // the hands done in a row from 1 ★, and what they say: the first weaker one, or (all done) the scans
+  function showVerdict(st, x) {
+    let k = 0; while (k < x.n && showDone(st, k, x) && showDone(st, k + 1, x)) k++;
+    if (!k || !showDone(st, 0, x)) return { k: 0, rows: [], fails: [], all: false };
+    const all = k === x.n;
+    const r = x.C.run({ board: st.board, hands: st.order.slice(0, k).map((id, i) => ({ id, star: i + 1, cards: st.hands[id] })), retina: st.retina, finger: st.finger, muscle: x.muscle ? st.muscle : null },
+      all ? x.scans : { retina: false, finger: false });
+    return Object.assign(r, { k, all });
+  }
+  // the step after a change: the first unfinished one; a step with one player left takes them; the first empty place opens
+  function showMove(st, x) {
+    st.edit = false;
+    const v = showVerdict(st, x);
+    if (v.fails.length) { st.cur = v.fails[0].kind === "order" ? v.fails[0].row.star : x.n; st.slot = null; return; }
+    let k = 0; while (k <= x.n && showDone(st, k, x)) k++;
+    st.cur = Math.min(k, x.n);
+    const left = x.s.players.filter(id => !st.order.slice(0, st.cur - 1).includes(id));
+    if (st.cur > 0 && !st.order[st.cur - 1] && left.length === 1) st.order[st.cur - 1] = left[0];
+    st.slot = showSlots(st, st.cur).find(sl => !showGet(st, sl)) || null;
+  }
   function showPut(suit) {
-    const st = showState(); if (!st.slot || !st.rank) return;
-    const card = st.rank + suit, slots = showSlots(st);
-    if (slots.some(x => x !== st.slot && showGet(st, x) === card)) return;
+    const st = showState(), x = showCtx(); if (!st.slot || !st.rank) return;
+    const card = st.rank + suit;
+    if (showAll(st).some(c => c === card) && showGet(st, st.slot) !== card) return;
     showSet(st, st.slot, card); st.rank = null;
-    const from = slots.indexOf(st.slot);
-    st.slot = [...slots.slice(from + 1), ...slots.slice(0, from)].find(x => !showGet(st, x)) || null;
+    const next = showSlots(st, st.cur).find(sl => !showGet(st, sl));
+    if (next) st.slot = next; else if (st.edit) st.slot = null; else showMove(st, x);
     renderOverlay();
   }
+  const cardTxt = (C, c) => `${C.rankName(c)}${SUIT[c[1]] || ""}`;
+  // a hand: its best five, the combination lit, the kickers dimmed
+  const fiveHTML = (C, best) => { const hi = (p, q) => C.ranks.indexOf(q[0]) - C.ranks.indexOf(p[0]), core = C.core(best).slice().sort(hi), rest = best.five.filter(c => !core.includes(c)).sort(hi);
+    return `<span class="sc-five">${[...core, ...rest].map(c => `<span class="sc-mini${core.includes(c) ? " core" : ""}${"hd".includes(c[1]) ? " red" : ""}">${esc(cardTxt(C, c))}</span>`).join("")}</span>`; };
   function showSheetHTML() {
-    const s = BH.session(sheet.sid), g = BH.game(s.gameId), H = g.heist, C = H.check, st = showState();
-    const act = H.active(s.coop || H.start(BH.ctxOf(s))), scans = C.scans(act), jack = C.jack(act), muscle = C.muscle(act), n = s.players.length;
-    const used = new Set(showSlots(st).map(x => showGet(st, x)).filter(Boolean));
-    const cardTxt = c => `${C.rankName(c)}${SUIT[c[1]] || ""}`;
+    const st = showState(), x = showCtx(), { s, C, n } = x;
+    const used = new Set(showAll(st).filter(Boolean)), v = showVerdict(st, x), failed = v.fails.length > 0;
     const slotBtn = (slot, label) => { const c = showGet(st, slot);
-      return `<button type="button" class="sc-slot${c && "hd".includes(c[1]) ? " red" : ""}" data-act="show-slot" data-v="${slot}" aria-pressed="${st.slot === slot}" aria-label="${esc(label)}: ${c ? esc(cardTxt(c)) : "пусто"}">${c ? esc(cardTxt(c)) : ""}</button>`; };
-    const picker = `<div class="sc-pick"><div class="sc-ranks">${C.ranks.split("").map(r => `<button type="button" class="sc-key" data-act="show-rank" data-v="${r}" aria-pressed="${st.rank === r}">${C.rankName(r + "s")}</button>`).join("")}</div>
+      return `<button type="button" class="sc-slot${c && "hd".includes(c[1]) ? " red" : ""}" data-act="show-slot" data-v="${slot}" aria-pressed="${st.slot === slot}" aria-label="${esc(label)}: ${c ? esc(cardTxt(C, c)) : "пусто"}">${c ? esc(cardTxt(C, c)) : ""}</button>`; };
+    const picker = st.slot ? `<div class="sc-pick"><div class="sc-ranks">${C.ranks.split("").map(r => `<button type="button" class="sc-key" data-act="show-rank" data-v="${r}" aria-pressed="${st.rank === r}">${C.rankName(r + "s")}</button>`).join("")}</div>
       <div class="sc-suits">${C.suits.split("").map(su => `<button type="button" class="sc-key sc-suit${"hd".includes(su) ? " red" : ""}" data-act="show-suit" data-v="${su}" ${!st.rank || used.has(st.rank + su) ? "disabled" : ""} aria-label="${({ s: "пики", h: "червы", d: "бубны", c: "трефы" })[su]}">${SUIT[su]}</button>`).join("")}
-      ${st.slot && showGet(st, st.slot) ? `<button type="button" class="sc-key sc-clear" data-act="show-clear">Убрать</button>` : ""}</div>
-      ${jack ? `<button type="button" class="sc-key sc-jack" data-act="show-jack" ${used.has("Jx") ? "disabled" : ""}>«Jack»: J без масти</button>` : ""}
-      <p class="tiny muted">${st.rank ? "Теперь масть." : "Сначала значение, потом масть."}</p></div>`;
-    const at = slot => (st.slot && st.slot.startsWith(slot) ? picker : "");
-    const board = `<div class="sc-sec"><div class="label">Общие карты</div><div class="sc-row">${st.board.map((c, i) => slotBtn("b:" + i, "Общая карта " + (i + 1))).join("")}</div>${at("b:")}</div>`;
-    const hands = s.players.map(id => { const hd = st.hands[id], p = BH.player(id) || { name: "?", color: "#888" };
-      return `<div class="sc-sec"><div class="sc-who">${BH.avatar(p, "sm")}<b>${esc(p.name)}</b></div>
-        <div class="sc-row">${hd.cards.map((c, i) => slotBtn("p:" + id + ":" + i, p.name + ", карманная " + (i + 1))).join("")}
-          <span class="sc-stars" role="group" aria-label="Красная фишка: ${esc(p.name)}">${Array.from({ length: n }, (_, k) => `<button type="button" class="sc-star" data-act="show-star" data-p="${esc(id)}" data-v="${k + 1}" aria-pressed="${hd.star === k + 1}">${k + 1}★</button>`).join("")}</span></div>
-        ${at("p:" + id + ":")}</div>`; }).join("");
-    const muscleSec = muscle ? `<div class="sc-sec"><div class="label">У кого «Громила»?</div><div class="chips">${s.players.map(id => `<button type="button" class="chip" data-act="show-muscle" data-p="${esc(id)}" aria-pressed="${st.muscle === id}">${esc(pname(id))}</button>`).join("")}</div></div>` : "";
-    const scanSec = muscleSec + (scans.retina ? `<div class="sc-sec"><div class="label">Сканер сетчатки: какое значение назвали?</div><div class="chips">${C.ranks.split("").map(r => `<button type="button" class="chip" data-act="show-retina" data-v="${r}" aria-pressed="${st.retina === r}">${C.rankName(r + "s")}</button>`).join("")}</div></div>` : "")
-      + (scans.finger ? `<div class="sc-sec"><div class="label">Сканер отпечатков: какую комбинацию назвали?</div><div class="chips">${C.cats.map((nm, i) => `<button type="button" class="chip" data-act="show-finger" data-v="${i}" aria-pressed="${st.finger === i}">${esc(nm)}</button>`).join("")}</div></div>` : "");
-    // the verdict: once every card, every chip and the scans are in
-    const empty = showSlots(st).filter(x => !showGet(st, x)).length, noStar = s.players.filter(id => !st.hands[id].star).length;
-    const missing = [empty && `${empty} ${BH.plural(empty, "карту", "карты", "карт")}`, noStar && `красную фишку ${noStar === 1 ? "ещё одному игроку" : `ещё ${noStar} игрокам`}`,
-      muscle && !st.muscle && "у кого «Громила»", scans.retina && !st.retina && "значение для сканера сетчатки", scans.finger && !Number.isInteger(st.finger) && "комбинацию для сканера отпечатков"].filter(Boolean);
-    let verdict = "", foot = "";
-    if (missing.length) verdict = `<p class="small muted sc-left">Осталось отметить: ${esc(missing.join(", "))}.</p>`;
-    else {
-      const r = C.run({ board: st.board, hands: s.players.map(id => ({ id, star: st.hands[id].star, cards: st.hands[id].cards })), retina: st.retina, finger: st.finger, muscle: muscle ? st.muscle : null }, scans);
-      const bad = new Set(r.fails.map(f => f.row.id));
-      const who = x => `${x.star} ★, ${pname(x.id)}`;
-      const why = f => f.kind === "order" ? `«${f.row.name}» (${who(f.row)}) слабее, чем «${f.after.name}» (${who(f.after)})${f.muscle ? `: «Громила» — у ${f.after.star} ★` : f.row.name === f.after.name ? ": решают остальные карты" : ""}.`
-        : f.kind === "retina" ? `Сканер сетчатки: в карманных картах (${who(f.row)}) нет ни одной карты ${C.rankName(st.retina + "s")}.`
-        : `Сканер отпечатков: назвали «${C.cats[st.finger]}», а у ${f.row.star} ★ — «${f.row.name}».`;
-      verdict = `<ol class="sc-hands">${r.rows.map(x => `<li class="${bad.has(x.id) ? "bad" : ""}"><span class="sc-chip">${x.star} ★</span><span class="sc-hn"><b>${esc(pname(x.id))}</b><span>${esc(x.name)}</span></span></li>`).join("")}</ol>
-        <p class="note ${r.ok ? "good" : "bad"} sc-verdict">${r.ok ? `${I.check}<span>Каждая рука не слабее прошлой${scans.retina && scans.finger ? ", сканеры пройдены" : scans.retina || scans.finger ? ", сканер пройден" : ""} — удача.</span>` : `<span>${r.fails.map(f => esc(why(f))).join(" ")} Это провал.</span>`}</p>`;
-      foot = `<button class="btn ${r.ok ? "primary" : "danger"} big" data-act="show-record" data-ok="${r.ok ? 1 : 0}">${r.ok ? I.check : ""}${esc(r.ok ? "Записать удачу" : "Записать провал")}</button>`;
+      ${showGet(st, st.slot) ? `<button type="button" class="sc-key sc-clear" data-act="show-clear">Убрать</button>` : ""}</div>
+      ${x.jack && st.cur > 0 ? `<button type="button" class="sc-key sc-jack" data-act="show-jack" ${used.has("Jx") ? "disabled" : ""}>«Jack»: J без масти</button>` : ""}
+      <p class="tiny muted">${st.rank ? "Теперь масть." : "Сначала значение, потом масть."}</p></div>` : "";
+    // done steps on top: the board, then each hand with its combination; a tap goes back to it
+    const doneRows = [], laterRows = [];
+    if (st.cur > 0 && showDone(st, 0, x)) doneRows.push(`<button type="button" class="sc-done" data-act="show-step" data-k="0"><span class="sc-chip sc-chip-b">Стол</span><span class="sc-five">${st.board.map(c => `<span class="sc-mini${"hd".includes(c[1]) ? " red" : ""}">${esc(cardTxt(C, c))}</span>`).join("")}</span>${x.muscle && st.muscle ? `<small>«Громила» — ${esc(pname(st.muscle))}</small>` : ""}</button>`);
+    v.rows.forEach((r, i) => { if (r.star === st.cur) return;
+      const bad = v.fails.some(f => f.row.id === r.id);
+      (r.star < st.cur ? doneRows : laterRows).push(`<button type="button" class="sc-done${bad ? " bad" : ""}" data-act="show-step" data-k="${r.star}"><span class="sc-chip">${r.star} ★</span><span class="sc-hn"><b>${esc(pname(r.id))}</b><span>${esc(r.name)}${i && !bad ? " — не слабее прошлой" : ""}</span>${fiveHTML(C, r.best)}</span></button>`); });
+    // the current step
+    let step = "";
+    if (st.cur === 0) {
+      step = `<div class="sc-sec"><div class="sc-step-h">Общие карты</div><div class="sc-row">${st.board.map((c, i) => slotBtn("b:" + i, "Общая карта " + (i + 1))).join("")}</div>${picker}
+        ${st.edit && showDone(st, 0, x) ? `<button type="button" class="btn block sc-next" data-act="show-next">Готово</button>` : ""}${x.muscle ? `<div class="label" style="margin:12px 0 6px">У кого «Громила»?</div><div class="chips">${s.players.map(id => `<button type="button" class="chip" data-act="show-muscle" data-p="${esc(id)}" aria-pressed="${st.muscle === id}">${esc(pname(id))}</button>`).join("")}</div>` : ""}</div>`;
+    } else {
+      const k = st.cur, id = st.order[k - 1], taken = st.order.slice(0, k - 1), left = s.players.filter(p => !taken.includes(p)), last = k === n;
+      const row = v.rows.find(r => r.star === k);
+      const scanQ = last && (x.scans.retina || x.scans.finger) ? `<div class="sc-scan"><p class="small muted">Пока эта рука закрыта, остальные называют, что у её владельца.</p>
+          ${x.scans.retina ? `<div class="label" style="margin:8px 0 6px">Сканер сетчатки: какое значение назвали?</div><div class="chips">${C.ranks.split("").map(r => `<button type="button" class="chip" data-act="show-retina" data-v="${r}" aria-pressed="${st.retina === r}">${C.rankName(r + "s")}</button>`).join("")}</div>` : ""}
+          ${x.scans.finger ? `<div class="label" style="margin:10px 0 6px">Сканер отпечатков: какую комбинацию назвали?</div><div class="chips">${C.cats.map((nm, i) => `<button type="button" class="chip" data-act="show-finger" data-v="${i}" aria-pressed="${st.finger === i}">${esc(nm)}</button>`).join("")}</div>` : ""}</div>` : "";
+      step = `<div class="sc-sec"><div class="sc-step-h"><span class="sc-chip">${k} ★</span>${last ? "Старшая красная фишка" : `${k}-я красная фишка`}</div>
+        ${left.length > 1 ? `<div class="label" style="margin:10px 0 6px">Чья это фишка?</div><div class="chips">${left.map(p => `<button type="button" class="chip" data-act="show-who" data-p="${esc(p)}" aria-pressed="${id === p}">${esc(pname(p))}</button>`).join("")}</div>`
+          : id ? `<div class="sc-who">${BH.avatar(BH.player(id) || { name: "?", color: "#888" }, "sm")}<b>${esc(pname(id))}</b></div>` : ""}
+        ${id ? `${scanQ}<div class="label" style="margin:10px 0 6px">Карманные карты</div><div class="sc-row">${showSlots(st, k).map((sl, i) => slotBtn(sl, pname(id) + ", карманная " + (i + 1))).join("")}</div>${picker}` : ""}
+        ${row ? `<div class="sc-now">${esc(row.name)}${fiveHTML(C, row.best)}</div>` : ""}${st.edit && showDone(st, k, x) ? `<button type="button" class="btn block sc-next" data-act="show-next">Готово</button>` : ""}</div>`;
     }
+    // the verdict: a weaker hand stops it; all done — success, or the scans failed
+    const who = r => `${r.star} ★, ${pname(r.id)}`;
+    const why = f => f.kind === "order" ? `«${f.row.name}» (${who(f.row)}) слабее, чем «${f.after.name}» (${who(f.after)})${f.muscle ? `: «Громила» — у ${f.after.star} ★` : f.row.name === f.after.name ? ": решают остальные карты" : ""}.`
+      : f.kind === "retina" ? `Сканер сетчатки: в карманных картах (${who(f.row)}) нет ни одной карты ${C.rankName(st.retina + "s")}.`
+      : `Сканер отпечатков: назвали «${C.cats[st.finger]}», а у ${f.row.star} ★ — «${f.row.name}».`;
+    const ok = v.all && !failed;
+    const verdict = failed ? `<p class="note bad sc-verdict"><span>${v.fails.map(f => esc(why(f))).join(" ")} Это провал${v.all ? "" : " — дальше руки можно не вводить"}.</span></p>`
+      : ok ? `<p class="note good sc-verdict">${I.check}<span>Каждая рука не слабее прошлой${x.scans.retina && x.scans.finger ? ", сканеры пройдены" : x.scans.retina || x.scans.finger ? ", сканер пройден" : ""} — удача.</span></p>` : "";
+    const foot = failed || ok ? `<button class="btn ${ok ? "primary" : "danger"} big" data-act="show-record" data-ok="${ok ? 1 : 0}">${ok ? I.check : ""}${esc(ok ? "Записать удачу" : "Записать провал")}</button>` : "";
+    const progress = `<p class="small muted sc-prog">${st.cur === 0 ? "Шаг 1: общие карты. Потом руки по очереди, от 1 ★." : `Рука ${st.cur} из ${n}.`}</p>`;
     return `<div class="overlay" data-act="overlay-bg"><div class="sheet" role="dialog" aria-modal="true" aria-labelledby="sheet-h">
       <div class="sheet-head"><div class="sheet-t"><h2 id="sheet-h">Проверка вскрытия</h2></div><button class="icon-btn" data-act="close-sheet" aria-label="Закрыть">${I.x}</button></div>
-      <div class="sheet-body sc-body"><p class="small muted">Отметьте общие карты, карманные карты и красную фишку каждого — приложение сравнит руки по правилам.</p>
-        ${board}${hands}${scanSec}${verdict}</div>
+      <div class="sheet-body sc-body">${progress}${doneRows.length ? `<div class="sc-dones">${doneRows.join("")}</div>` : ""}${step}${laterRows.length ? `<div class="sc-dones">${laterRows.join("")}</div>` : ""}${verdict}</div>
       ${foot ? `<div class="sheet-foot">${foot}</div>` : ""}
     </div></div>`;
   }
@@ -2709,14 +2745,24 @@
       case "show-suit": if (sheet && sheet.kind === "show") showPut(el.dataset.v); break;
       case "show-jack": if (sheet && sheet.kind === "show") { const st = showState(); st.rank = "J"; showPut("x"); } break;
       case "show-clear": if (sheet && sheet.kind === "show") { const st = showState(); showSet(st, st.slot, null); st.rank = null; renderOverlay(); } break;
-      case "show-star": if (sheet && sheet.kind === "show") {
-        const st = showState(), id = el.dataset.p, v = +el.dataset.v, mine = st.hands[id];
-        const other = Object.keys(st.hands).find(o => o !== id && st.hands[o].star === v);
-        if (other) st.hands[other].star = mine.star;   // the chip changes hands: the other one gets this one's chip
-        mine.star = mine.star === v && !other ? null : v; renderOverlay(); } break;
-      case "show-retina": if (sheet && sheet.kind === "show") { const st = showState(); st.retina = st.retina === el.dataset.v ? null : el.dataset.v; renderOverlay(); } break;
-      case "show-muscle": if (sheet && sheet.kind === "show") { const st = showState(); st.muscle = st.muscle === el.dataset.p ? null : el.dataset.p; renderOverlay(); } break;
-      case "show-finger": if (sheet && sheet.kind === "show") { const st = showState(); st.finger = st.finger === +el.dataset.v ? null : +el.dataset.v; renderOverlay(); } break;
+      // back to a step: its cards can be changed (tap a card); a step with one player left takes them
+      case "show-step": if (sheet && sheet.kind === "show") { const st = showState(), x = showCtx(), k = +el.dataset.k;
+        st.cur = k; st.slot = null; st.rank = null; st.edit = true;
+        const left = x.s.players.filter(p => !st.order.slice(0, k - 1).includes(p));
+        if (k > 0 && !st.order[k - 1] && left.length === 1) st.order[k - 1] = left[0];
+        renderOverlay(); } break;
+      // whose chip the step is: they leave any later step; then their first empty card
+      case "show-next": if (sheet && sheet.kind === "show") { const st = showState(); showMove(st, showCtx()); renderOverlay(); } break;
+      case "show-who": if (sheet && sheet.kind === "show") { const st = showState(), x = showCtx(), k = st.cur, id = el.dataset.p, prev = st.order[k - 1];
+        // the chip was someone else's by mistake: the cards typed go with it to the right player
+        if (prev && prev !== id && st.hands[id].every(c => !c)) { st.hands[id] = st.hands[prev]; st.hands[prev] = Array(st.pocket).fill(null); }
+        st.order = st.order.map((p, i) => (i !== k - 1 && p === id ? null : p)); st.order[k - 1] = id; st.rank = null;
+        st.slot = showSlots(st, k).find(sl => !showGet(st, sl)) || null;
+        if (!st.slot && showDone(st, k, x)) showMove(st, x);
+        renderOverlay(); } break;
+      case "show-muscle": if (sheet && sheet.kind === "show") { const st = showState(), x = showCtx(); st.muscle = el.dataset.p; if (st.cur === 0 && showDone(st, 0, x)) showMove(st, x); renderOverlay(); } break;
+      case "show-retina": if (sheet && sheet.kind === "show") { const st = showState(), x = showCtx(); st.retina = el.dataset.v; if (showDone(st, st.cur, x)) showMove(st, x); renderOverlay(); } break;
+      case "show-finger": if (sheet && sheet.kind === "show") { const st = showState(), x = showCtx(); st.finger = +el.dataset.v; if (showDone(st, st.cur, x)) showMove(st, x); renderOverlay(); } break;
       case "show-record": if (sheet && sheet.kind === "show") { const rs = BH.session(sheet.sid); sheet = null; renderOverlay(); recordHeist(rs, el.dataset.ok === "1"); } break;
       // the card in a slot: one of the stack, chosen from the list (the app suggests the next one, the table may differ)
       case "coop-pick": openCoopPick(s, el.dataset.kind, el.dataset.slot); break;
@@ -3150,7 +3196,7 @@
   window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", applyTheme);
 
   /* ---------- start ---------- */
-  BH.version = "0.34.1";
+  BH.version = "0.35.0";
   applyTheme();
   // reloaded while a sheet was open: step off its history entry; a fresh start has nothing before it
   if (history.state && history.state.ov) history.back();

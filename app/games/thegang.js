@@ -93,7 +93,8 @@
     const cnt = {}; for (const x of v) cnt[x] = (cnt[x] || 0) + 1;
     const groups = Object.entries(cnt).map(([r, n]) => [n, +r]).sort((a, b) => b[0] - a[0] || b[1] - a[1]), by = groups.map(x => x[1]);
     if (straight && flush) return { cat: high === 14 ? 9 : 8, tb: [high] };
-    if (groups[0][0] === 4) return { cat: 7, tb: by };
+    // five of a value is possible with the Jack: four jacks and a jack kicker (p. 19)
+    if (groups[0][0] >= 4) return { cat: 7, tb: groups[0][0] === 5 ? [by[0], by[0]] : by };
     if (groups[0][0] === 3 && groups[1][0] === 2) return { cat: 6, tb: by };
     if (flush) return { cat: 5, tb: v };
     if (straight) return { cat: 4, tb: [high] };
@@ -114,6 +115,15 @@
     pick(0, []);
     return best;
   }
+  // the cards of the five that make the combination (lit on the screen), the rest are kickers: the pairs, sets and four of a
+  // kind; all five in a straight, flush, full house; the top card of a high card
+  const handCore = h => {
+    if ([4, 5, 6, 8, 9].includes(h.cat)) return h.five.slice();
+    if (h.cat === 0) return h.five.filter(c => rv(c) === h.tb[0]).slice(0, 1);
+    if (h.cat === 7) return h.five.filter(c => rv(c) === h.tb[0]).slice(0, 4);
+    const cnt = {}; for (const c of h.five) cnt[c[0]] = (cnt[c[0]] || 0) + 1;
+    return h.five.filter(c => cnt[c[0]] >= 2);
+  };
   const handName = h => {
     const t = h.tb.map(rn);
     return [`Старшая карта: ${t[0]}`, `Пара: ${t[0]}`, `Две пары: ${t[0]} и ${t[1]}`, `Тройка: ${t[0]}`, `Стрит до ${t[0]}`,
@@ -128,7 +138,7 @@
     const muscle = input.muscle || null;
     const cmp = (a, b) => a.best.cat - b.best.cat || (a.id === muscle ? 1 : b.id === muscle ? -1 : cmpHands(a.best, b.best));
     let weak = null;
-    for (let i = 1; i < rows.length && !weak; i++) if (cmp(rows[i], rows[i - 1]) < 0) weak = { row: rows[i], after: rows[i - 1], muscle: rows[i - 1].id === muscle };
+    for (let i = 1; i < rows.length && !weak; i++) if (cmp(rows[i], rows[i - 1]) < 0) weak = { row: rows[i], after: rows[i - 1], muscle: rows[i - 1].id === muscle && rows[i].best.cat === rows[i - 1].best.cat };
     const top = rows[rows.length - 1], fails = [];
     if (weak) fails.push({ kind: "order", row: weak.row, after: weak.after, muscle: weak.muscle });
     if (scans.retina) { const hit = !!input.retina && top.cards.some(c => c[0] === input.retina); if (!hit) fails.push({ kind: "retina", row: top }); }
@@ -217,7 +227,7 @@
         scans: act => ({ retina: act.some(a => a.kind === "ch" && a.n === 4), finger: act.some(a => a.kind === "ch" && a.n === 9) }),
         // the specialists that change the showdown (p. 19): «Jack» — a J without a suit, «Muscle» — its owner beats the same combination
         jack: act => act.some(a => a.kind === "sp" && a.n === 7), muscle: act => act.some(a => a.kind === "sp" && a.n === 10),
-        run: checkShowdown, best: bestHand, compare: cmpHands, name: handName, cats: CATS, ranks: RANKS, suits: SUITS, rankName: c => rn(rv(c)),
+        run: checkShowdown, best: bestHand, compare: cmpHands, name: handName, core: handCore, cats: CATS, ranks: RANKS, suits: SUITS, rankName: c => rn(rv(c)),
       },
       active: st => [...(st.perm || []).map(n => ({ kind: "ch", n, perm: true })), ...(st.ch || []).map(n => ({ kind: "ch", n })), ...(st.sp ? [{ kind: "sp", n: st.sp }] : [])],
       // the state at the start of the game

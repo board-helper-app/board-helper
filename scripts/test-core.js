@@ -687,6 +687,17 @@ console.log(`${passed} passed${process.exitCode ? ", some FAILED" : ""}`);
     assert.strictEqual(P.pocket(act(10)), 3); assert.strictEqual(P.pocket(act(4)), 2);
     assert.deepStrictEqual({ ...P.scans(act(9)) }, { retina: false, finger: true });
   });
+  t("the gang showdown: the cards of the combination are lit, the kickers are not", () => {
+    const core = x => [...P.core(best(x))].sort().join(" ");
+    assert.strictEqual(core("Ks Kh 8d 4c 2s 3h 9c"), "Kh Ks", "a pair: its two cards");
+    assert.strictEqual(core("Ks Kh 4d 4c 2s 3h 9c"), "4c 4d Kh Ks", "two pairs: four cards");
+    assert.strictEqual(core("5s 6h 7d 8c 9s Kh 2c"), "5s 6h 7d 8c 9s", "a straight: all five");
+    assert.strictEqual(core("As Jh 8d 4c 2s 3h 9c"), "As", "a high card: the top one");
+    assert.strictEqual(P.core(best("7s 7h 7d 7c 2s 3h 9c")).length, 4, "four of a kind: four, the fifth is a kicker");
+    assert.strictEqual(P.core(best("Jx Js Jh Jd Jc 2s")).length, 4, "five jacks with the Jack: four of a kind and a J kicker (p. 19)");
+    assert.deepStrictEqual([...best("Jx Js Jh Jd Jc 2s").tb], [11, 11], "the kicker is the fifth jack, not the 2");
+    assert.ok(stronger("Jx Js Jh Jd Jc 2s 3h", "Js Jh Jd Jc Ts 2s 3h") && stronger("Js Jh Jd Jc As 2s 3h", "Jx Js Jh Jd Jc 2s 3h"), "a J kicker: above 10, below A");
+  });
   t("the gang showdown: the specialists — «Jack» is a J without a suit, «Muscle» beats the same combination (p. 19)", () => {
     assert.strictEqual(best("Jx 9h 7h 4h 2h 3c Kd").cat, 0, "four hearts and the Jack: no flush");
     assert.strictEqual(best("Jx 9h 7h 4h 2h 5h Kd").cat, 5, "five hearts without it: a flush");
@@ -699,6 +710,8 @@ console.log(`${passed} passed${process.exitCode ? ", some FAILED" : ""}`);
     assert.ok(ok.ok, "Muscle: Arsène's pair is the strongest pair, three sevens still beat it");
     const bad = P.run({ board, hands: hands({ arsene: 1, doris: 2, trudy: 3, danny: 4 }), muscle: "arsene" }, { retina: false, finger: false });
     assert.ok(!bad.ok && bad.fails[0].row.id === "doris" && bad.fails[0].muscle, "a pair after the Muscle's pair is weaker, and the reason says so");
+    const trips = P.run({ board, hands: hands({ danny: 1, arsene: 2, doris: 3, trudy: 4 }), muscle: "danny" }, { retina: false, finger: false });
+    assert.ok(!trips.ok && !trips.fails[0].muscle, "a pair after three of a kind is weaker by the combination, not because of Muscle");
     assert.ok(P.run({ board, hands: hands({ arsene: 1, doris: 2, trudy: 3, danny: 4 }) }, { retina: false, finger: false }).ok, "without Muscle the twos with a jack come first");
     const act = n => [{ kind: "sp", n }];
     assert.ok(P.jack(act(7)) && !P.jack(act(10)) && P.muscle(act(10)));
