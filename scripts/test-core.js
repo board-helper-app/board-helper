@@ -9,7 +9,7 @@ const ctx = {
 };
 ctx.window = ctx;
 vm.createContext(ctx);
-for (const f of ["js/util.js", "js/store.js", "js/games.js", "js/chances.js", "js/art.js", "games/flip7.js", "games/flip7v.js", "games/faraway.js", "games/thegang.js", "games/crokinole.js", "games/coconuts.js", "games/goldfever.js", "games/zoo.js", "games/toybattle.js", "games/dobble.js", "games/ribbit.js", "games/jackal.js"])
+for (const f of ["js/util.js", "js/store.js", "js/games.js", "js/chances.js", "js/art.js", "games/flip7.js", "games/flip7v.js", "games/faraway.js", "games/thegang.js", "games/crokinole.js", "games/coconuts.js", "games/goldfever.js", "games/zoo.js", "games/toybattle.js", "games/dobble.js", "games/ribbit.js", "games/jackal.js", "games/bigwalk.js"])
   vm.runInContext(fs.readFileSync(path.join(__dirname, "..", "app", f), "utf8"), ctx, { filename: f });
 const BH = ctx.BH, g = BH.game("flip7");
 let passed = 0;
@@ -1304,6 +1304,85 @@ console.log(`${passed} passed${process.exitCode ? ", some FAILED" : ""}`);
     assert.ok(G.faq.some(question => question.ref === draw.id && question.q.includes("колода")));
   });
   console.log(`ribbit: ${passed - before} passed${process.exitCode ? ", some FAILED" : ""}`);
+}
+{
+  // «Большая бродилка»: «Свод законов» (p. 1 laws, p. 2 squares), the board texts, the expansion box
+  const G = BH.game("bigwalk"), before = passed;
+  const base = { id: "bw1", gameId: G.id, players: ["a", "b", "c"], exp: [], opts: {}, rounds: [] };
+  const withExp = { ...base, exp: ["more"] }, withAb = { ...withExp, opts: { abilities: true } };
+  const rule = id => G.rules.find(r => r.id === id);
+  t("bigwalk: 2–5 players; the mini-expansion is on by default, abilities are an option of it, off by default", () => {
+    assert.strictEqual(G.players.min, 2); assert.strictEqual(G.players.max, 5);
+    assert.strictEqual(JSON.stringify(G.expansions.map(e => [e.id, e.default])), JSON.stringify([["more", true]]));
+    assert.strictEqual(BH.gameOptions(G, BH.ctxOf(base)).length, 0, "no abilities without the expansion");
+    const o = BH.gameOptions(G, BH.ctxOf(withExp)); assert.strictEqual(o.length, 1); assert.strictEqual(o[0].default, false);
+  });
+  t("bigwalk: setup — three decks, figures on the start, 10 coins each; the expansion cards and abilities only when chosen", () => {
+    const ids = s => BH.setupSteps(s).map(x => x.id);
+    assert.strictEqual(JSON.stringify(ids(base)), JSON.stringify(["decks", "heroes", "coins"]));
+    assert.strictEqual(JSON.stringify(ids(withExp)), JSON.stringify(["decks", "heroes", "coins"]));
+    assert.strictEqual(JSON.stringify(ids(withAb)), JSON.stringify(["decks", "heroes", "coins", "abilities"]));
+    assert.strictEqual(JSON.stringify(ids({ ...base, opts: { abilities: true } })), JSON.stringify(["decks", "heroes", "coins"]), "an option left from the expansion does nothing without it");
+    const step = (s, id) => BH.setupSteps(s).find(x => x.id === id).text;
+    assert.match(step(base, "decks"), /«Хорошо\/Плохо».*«Лавка Джо».*«Та-Дам!»/);
+    assert.ok(!/дополнения/.test(step(base, "decks"))); assert.match(step(withExp, "decks"), /карты дополнения/);
+    assert.match(step(base, "heroes"), /«Старт»/); assert.match(step(base, "coins"), /\*10\* монет/);
+    assert.match(step(withAb, "abilities"), /«Правила»/);
+  });
+  t("bigwalk: the turn — dice by the colour of the square, the square before the cards, forward only, three shop cards", () => {
+    const rem = G.rounds.reminder(BH.ctxOf(base)).join(" ");
+    assert.match(rem, /Светлая — \*один\*.*Серая — \*два\*, выбери один.*Тёмная — \*два\*, иди на сумму/);
+    assert.match(rem, /клетку в конце хода, а \*потом\* карты/);
+    assert.match(rem, /\*вперёд\* в свой ход/);
+    assert.match(rem, /не больше \*трёх\*/);
+    assert.match(rem, /нужна \*6\*/);
+    assert.ok(!/способность/.test(rem)); assert.match(G.rounds.reminder(BH.ctxOf(withAb)).join(" "), /способность/);
+  });
+  t("bigwalk: two ways to win at once — the safe or a 6 in the mine; a race without points", () => {
+    assert.ok(BH.isRace(G));
+    assert.strictEqual(JSON.stringify(BH.raceGoals(G, base).map(x => x.how)), JSON.stringify(["safe", "mine"]));
+    const stored = BH._normalize({ players: [{ id: "a", name: "Аня" }, { id: "b", name: "Боря" }, { id: "c", name: "Вика" }],
+      sessions: [{ ...withExp, status: "finished", winners: ["c"], race: { how: "mine" } }] }).sessions[0];
+    assert.strictEqual(stored.race.how, "mine"); assert.strictEqual(JSON.stringify(Array.from(stored.winners)), JSON.stringify(["c"])); assert.ok(!BH.hasScore(stored, "c"));
+    assert.match(G.scoring.end().join(" "), /\*Финиш-сейф\* вскрыт.*\*6\* в шахте/);
+  });
+  t("bigwalk: the squares say what the list and the board say", () => {
+    const sq = id => G.cards.find(k => k.id === id).does;
+    assert.strictEqual(G.cards.length, 17);
+    assert.match(sq("safe"), /\*один\* кубик.*\*6\*.*\*5\* монет.*1.*\*10\*.*2/s);
+    assert.match(sq("mine"), /\*1\* — пропусти.*\*2–5\* — получи \*10\*.*\*6\* — сразу \*победа\*/s);
+    assert.match(sq("shop"), /\*две\* карты.*\*одну\*.*\*5\* монет.*сбрось/s);
+    assert.match(sq("portal"), /\*того же цвета\*.*позади/s);
+    assert.match(sq("tadam"), /\*самую левую\*.*вправо.*за край/s);
+    assert.match(sq("colors"), /\*ничего\*.*Пустыми они не считаются/s);
+    assert.match(sq("gum"), /\*сразу\* останавливаешься.*\*нельзя\* сдвинуть.*финиш-сейф/s);
+    assert.match(sq("fight"), /прибавляет \*2\*.*\*10\* монет.*\*одну\* «Лавку Джо».*\*10\* клеток назад.*Ничья/s);
+    assert.match(sq("tornado"), /\*10\* монет/); assert.match(sq("bike"), /\*10\* клеток вперёд/); assert.match(sq("luck"), /\*три\* раза.*\*сумму\*/s);
+    assert.match(sq("spread"), /\*«Хорошо»\*.*Остальные игроки тащат по одной карте \*«Плохо»\*/s);
+  });
+  t("bigwalk: the laws are on page 1, the squares on page 2; the board texts have no page; search and faq hold together", () => {
+    for (const id of ["turn", "cards", "order", "coins"]) assert.strictEqual(rule(id).page, 1, id);
+    assert.strictEqual(rule("cells").page, 2);
+    for (const id of ["goal", "setup", "dice", "board", "finish", "expansion"]) assert.ok(!rule(id).page, id);
+    assert.match(rule("coins").body, /не хватает.*всё, что есть.*ничего не платите/s);
+    assert.match(rule("order").body, /никто из них не считается/);
+    assert.match(rule("cards").body, /как говорит карта/);
+    assert.ok(BH.searchRules(G, "можно ли проскочить жвачку?").slice(0, 3).some(h => /жвачк/i.test(h.title + (h.q || ""))));
+    for (const q of G.faq) if (q.ref) assert.ok(rule(q.ref), q.ref);
+    for (const q of G.faq) if (q.src) assert.ok(BH.FAQ_SRC[q.src], q.src);
+    const ids = G.ruleGroups.flatMap(gr => gr.ids); for (const r of G.rules) assert.strictEqual(ids.filter(x => x === r.id).length, 1, r.id);
+    assert.strictEqual(ids.length, G.rules.length);
+    // the book is silent on who starts and on +1 in the mine: the app says so instead of inventing
+    assert.match(G.first.hint, /не сказано/); assert.ok(!/часовой/.test(G.first.hint), "the direction of play is not in the sources");
+    assert.ok(G.faq.find(q => /7 или 8/.test(q.q) && q.src === "disputed"), "a result above 6 at the safe is marked disputed");
+    assert.ok(G.faq.find(q => /шахте/.test(q.q) && q.src === "disputed"));
+  });
+  t("bigwalk: in-game texts are neutral — no «-л» forms", () => {
+    const texts = [...G.rounds.reminder(BH.ctxOf(withAb)), ...G.cards.map(k => k.does), ...G.scoring.end(), ...BH.raceGoals(G, base).map(x => x.text + " " + x.ask), ...BH.setupSteps(withAb).map(x => x.text)].join(" ");
+    const bad = texts.match(/[А-Яа-яё]+(?:ил|ыл|ал|ял|ёл|ел|шёл|лся|лась)(?![А-Яа-яё])/g) || [];
+    assert.strictEqual(JSON.stringify(bad.filter(w => !/^(стол|ел|пол|угол|портал)$/i.test(w))), JSON.stringify([]));
+  });
+  console.log(`bigwalk: ${passed - before} passed${process.exitCode ? ", some FAILED" : ""}`);
 }
 {
   // the home shelf «Давно не играли»: played once, the last game more than a year ago (the app passes 365), the most forgotten first

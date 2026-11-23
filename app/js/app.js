@@ -456,6 +456,8 @@
     const fin = finishedSessions().sort((a, b) => (b.created || 0) - (a.created || 0));
     return (gameId && fin.find(x => x.gameId === gameId)) || fin[0] || null;
   }
+  // expansions the family always plays with are on for a game never played before (expansion «default: true»)
+  const defaultExp = g => (g ? g.expansions.filter(e => e.default).map(e => e.id) : []);
   function startDraft(gameId, from) {
     if (from) {
       draft = { editId: from.id, date: from.created, gameId: from.gameId, exp: from.exp.slice(), placeId: from.placeId, players: from.players.slice(), opts: Object.assign({}, from.opts), final: {}, winners: [], step: null, lastPlayers: [] };
@@ -467,7 +469,7 @@
     draft = {
       date: Date.now(),
       gameId: gid,
-      exp: lastSame ? lastSame.exp.slice() : [],
+      exp: lastSame ? lastSame.exp.slice() : defaultExp(BH.game(gid)),
       placeId: (last && BH.place(last.placeId) ? last.placeId : (S().places[0] || {}).id) || null,
       players: me && !me.hidden ? [me.id] : [],                    // me first; the rest in one tap
       lastPlayers: visiblePlayers(last ? last.players : []),
@@ -505,7 +507,7 @@
     if (draft.gameId !== id) {
       const last = lastSessionFor(id);
       draft.gameId = id; draft.opts = {}; draft.mini = null; draft.oneCounts = {};
-      draft.exp = last && last.gameId === id ? last.exp.slice() : [];
+      draft.exp = last && last.gameId === id ? last.exp.slice() : defaultExp(BH.game(id));
       if (!draft.editId) draft.lastPlayers = visiblePlayers(last ? last.players : []);
     }
     // a game with expansions: they are the next step
@@ -3187,7 +3189,7 @@
   window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", applyTheme);
 
   /* ---------- start ---------- */
-  BH.version = "0.38.0";
+  BH.version = "0.39.0";
   applyTheme();
   // reloaded while a sheet was open: step off its history entry; a fresh start has nothing before it
   if (history.state && history.state.ov) history.back();
