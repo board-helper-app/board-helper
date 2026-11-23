@@ -22,7 +22,7 @@ const ENV = {
   model: process.env.MODEL || "aliceai-llm-flash",
   voice: process.env.VOICE || "marina",
   role: process.env.VOICE_ROLE || "friendly",
-  allowOrigin: process.env.ALLOW_ORIGIN || "https://koleso-app.github.io",
+  allowOrigin: process.env.ALLOW_ORIGIN || "https://playwithmao.github.io",
 };
 const LIMITS = { question: 400, tts: 1200, answerTokens: 700 };
 const NOT_FOUND = "В правилах об этом ничего не сказано.";   // spoken by the app from its own cache, not paid again

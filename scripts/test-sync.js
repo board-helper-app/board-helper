@@ -47,7 +47,7 @@ function device(name, storage) {
   dev.fire = t => (listeners[t] || []).forEach(f => f());
   return dev;
 }
-const CFG = { owner: "me", repo: "koleso-data", token: "good-token", pass: "секретный пароль" };
+const CFG = { owner: "me", repo: "board-helper-data", token: "good-token", pass: "секретный пароль" };
 const names = d => d.BH.state.players.map(p => p.name).sort().join(",");
 const PALETTE = ["#D9483B", "#2F74D0", "#22995A", "#D9A21B", "#8A4FD3"];
 const BH_COLOR = c => PALETTE.find(x => x !== c);   // some other valid colour
@@ -223,13 +223,6 @@ async function t(name, fn) { try { await fn(); passed++; } catch (e) { console.e
     const w = gh.writes;
     await A.BH.cloud.syncNow(); await B.BH.cloud.syncNow();
     assert.strictEqual(gh.writes, w);
-  });
-  await t("the «Колесо недели» connection is found on the same site", async () => {
-    const W = device("W", { "koleso-sync": JSON.stringify(CFG) });
-    const w = W.BH.cloud.wheelCfg();
-    assert.strictEqual(w.repo, "koleso-data"); assert.strictEqual(w.pass, CFG.pass);
-    await W.BH.cloud.connect(w);
-    assert.strictEqual(names(W), "Аннушка,Боря,Глеб,Дима");
   });
   console.log(`sync: ${passed} passed${process.exitCode ? ", some FAILED" : ""}`);
 })();

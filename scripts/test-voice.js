@@ -1,6 +1,6 @@
 // Checks the voice function with fake GitHub / AI Studio / SpeechKit.  Run: node scripts/test-voice.js
 const assert = require("assert"), path = require("path"), fs = require("fs");
-process.env.ALLOWED_REPO = "Owner/koleso-data";
+process.env.ALLOWED_REPO = "Owner/board-helper-data";
 process.env.FOLDER_ID = "folder1";
 const calls = [];
 global.fetch = async (url, init) => {
@@ -9,7 +9,7 @@ global.fetch = async (url, init) => {
   if (url.startsWith("https://api.github.com/repos/")) {
     if (global.ghDown) return json(502, {});
     const good = /^Bearer good_token_/.test(init.headers.Authorization);
-    return good ? json(200, { private: true, full_name: "Owner/koleso-data" }) : json(401, {});
+    return good ? json(200, { private: true, full_name: "Owner/board-helper-data" }) : json(401, {});
   }
   if (url.includes("/v1/chat/completions")) {
     const body = JSON.parse(init.body);
@@ -40,19 +40,19 @@ fs.writeFileSync(path.join(rulesDir, "flip7.txt"), [
 ].join("\n"));
 const fn = require(path.join(fnDir, "index.js"));
 const ctx = { token: { access_token: "iam-token" } };
-const call = (body, headers) => fn.handler({ httpMethod: "POST", headers: Object.assign({ Origin: "https://koleso-app.github.io" }, headers), body: JSON.stringify(body) }, ctx);
-const gh = { owner: "Owner", repo: "koleso-data", token: "good_token_0123456789" };
+const call = (body, headers) => fn.handler({ httpMethod: "POST", headers: Object.assign({ Origin: "https://playwithmao.github.io" }, headers), body: JSON.stringify(body) }, ctx);
+const gh = { owner: "Owner", repo: "board-helper-data", token: "good_token_0123456789" };
 
 let passed = 0;
 const t = async (name, f) => { try { await f(); passed++; } catch (e) { console.error("FAIL " + name + "\n  " + (e.stack || e)); process.exitCode = 1; } };
 (async () => {
   await t("preflight answers with CORS for the app", async () => {
-    const r = await fn.handler({ httpMethod: "OPTIONS", headers: { Origin: "https://koleso-app.github.io" } }, ctx);
-    assert.strictEqual(r.statusCode, 204); assert.strictEqual(r.headers["Access-Control-Allow-Origin"], "https://koleso-app.github.io");
+    const r = await fn.handler({ httpMethod: "OPTIONS", headers: { Origin: "https://playwithmao.github.io" } }, ctx);
+    assert.strictEqual(r.statusCode, 204); assert.strictEqual(r.headers["Access-Control-Allow-Origin"], "https://playwithmao.github.io");
   });
   await t("a stranger without the token is refused before any paid call", async () => {
     const n = calls.length;
-    const r = await call({ action: "ask", game: "flip7", question: "можно ли заморозь на себя?", gh: { owner: "Owner", repo: "koleso-data", token: "stolen_or_wrong_token_xx" } });
+    const r = await call({ action: "ask", game: "flip7", question: "можно ли заморозь на себя?", gh: { owner: "Owner", repo: "board-helper-data", token: "stolen_or_wrong_token_xx" } });
     assert.strictEqual(r.statusCode, 403);
     assert.ok(calls.slice(n).every(c => c.url.startsWith("https://api.github.com")), "no AI calls");
   });
@@ -86,7 +86,7 @@ const t = async (name, f) => { try { await f(); passed++; } catch (e) { console.
     assert.strictEqual((await call({ action: "tts", text: "x".repeat(1201), gh })).statusCode, 400);
   });
   await t("a junk token is remembered: the second try does not even reach GitHub", async () => {
-    const bad = { owner: "Owner", repo: "koleso-data", token: "junk_token_abcdefghijklmnop" };
+    const bad = { owner: "Owner", repo: "board-helper-data", token: "junk_token_abcdefghijklmnop" };
     await call({ action: "tts", text: "x", gh: bad });
     const n = calls.length;
     const r = await call({ action: "tts", text: "x", gh: bad });
@@ -108,7 +108,7 @@ const t = async (name, f) => { try { await f(); passed++; } catch (e) { console.
     assert.strictEqual((await call({ action: "tts", text: "x", gh: gh3 })).statusCode, 200);
   });
   await t("a daily cap stops spending even with a valid token", async () => {
-    const gh2 = { owner: "Owner", repo: "koleso-data", token: "good_token_0123456789" };
+    const gh2 = { owner: "Owner", repo: "board-helper-data", token: "good_token_0123456789" };
     let last;
     for (let i = 0; i < 160; i++) last = await call({ action: "ask", game: "flip7", question: "можно ли заморозь на себя?", gh: gh2, speak: false });
     assert.strictEqual(last.statusCode, 429);

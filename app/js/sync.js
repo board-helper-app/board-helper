@@ -2,8 +2,8 @@
  *
  * Data leaves the device only as an AES-256-GCM ciphertext. The key is derived from the
  * user's own passphrase (PBKDF2-SHA-256, 600 000 rounds) and never leaves the device.
- * The ciphertext is one file in the user's own PRIVATE GitHub repository (the same one
- * «Колесо недели» uses, file nastolki.enc.json), reached with a fine-grained token.
+ * The ciphertext is one file (nastolki.enc.json) in the user's own PRIVATE GitHub repository,
+ * reached with a fine-grained token.
  *
  * Works in browsers, in the Electron window and in Node 20+ (for tests).
  */

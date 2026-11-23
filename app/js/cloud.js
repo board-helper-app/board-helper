@@ -9,7 +9,6 @@
   "use strict";
   const BH = window.BH, L = window.BHSync;
   const LS_CFG = "board-helper-sync", LS_PENDING = "board-helper-sync-pending", LS_LAST = "board-helper-sync-last";
-  const WHEEL_CFG = "koleso-sync";   // «Колесо недели» on the same site keeps its connection here
 
   const read = k => { try { return localStorage.getItem(k); } catch (e) { return null; } };
   const write = (k, v) => { try { if (v === null) localStorage.removeItem(k); else localStorage.setItem(k, v); } catch (e) {} };
@@ -47,21 +46,6 @@
   // a game created / finished / deleted, players edited, data imported: send soon
   C.keyMoment = () => { if (C.cfg && C.pending) schedule(800); };
   function schedule(ms) { clearTimeout(timer); timerAt = Date.now() + ms; timer = setTimeout(() => { timerAt = 0; C.syncNow(); }, ms); }
-
-  /* «Колесо недели» connection on this device, if any (same site, so the same storage) */
-  C.wheelCfg = () => {
-    const c = parse(read(WHEEL_CFG));
-    return c && c.owner && c.repo && c.token ? { owner: String(c.owner), repo: String(c.repo), token: String(c.token), pass: typeof c.pass === "string" ? c.pass : "" } : null;
-  };
-
-  /* after a new token worked here, put it into the wheel's connection too (only the token changes) */
-  C.updateWheelToken = token => {
-    const c = parse(read(WHEEL_CFG));
-    if (!c || !c.owner || !c.repo) return false;
-    c.token = token;
-    write(WHEEL_CFG, JSON.stringify(c));
-    return true;
-  };
 
   C.syncNow = async cfgOverride => {
     const c = cfgOverride || C.cfg;
