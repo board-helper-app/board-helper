@@ -40,15 +40,15 @@ fs.writeFileSync(path.join(rulesDir, "flip7.txt"), [
 ].join("\n"));
 const fn = require(path.join(fnDir, "index.js"));
 const ctx = { token: { access_token: "iam-token" } };
-const call = (body, headers) => fn.handler({ httpMethod: "POST", headers: Object.assign({ Origin: "https://playwithmao.github.io" }, headers), body: JSON.stringify(body) }, ctx);
+const call = (body, headers) => fn.handler({ httpMethod: "POST", headers: Object.assign({ Origin: "https://board-helper-app.github.io" }, headers), body: JSON.stringify(body) }, ctx);
 const gh = { owner: "Owner", repo: "board-helper-data", token: "good_token_0123456789" };
 
 let passed = 0;
 const t = async (name, f) => { try { await f(); passed++; } catch (e) { console.error("FAIL " + name + "\n  " + (e.stack || e)); process.exitCode = 1; } };
 (async () => {
   await t("preflight answers with CORS for the app", async () => {
-    const r = await fn.handler({ httpMethod: "OPTIONS", headers: { Origin: "https://playwithmao.github.io" } }, ctx);
-    assert.strictEqual(r.statusCode, 204); assert.strictEqual(r.headers["Access-Control-Allow-Origin"], "https://playwithmao.github.io");
+    const r = await fn.handler({ httpMethod: "OPTIONS", headers: { Origin: "https://board-helper-app.github.io" } }, ctx);
+    assert.strictEqual(r.statusCode, 204); assert.strictEqual(r.headers["Access-Control-Allow-Origin"], "https://board-helper-app.github.io");
   });
   await t("a stranger without the token is refused before any paid call", async () => {
     const n = calls.length;
