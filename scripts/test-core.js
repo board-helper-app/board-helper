@@ -1332,7 +1332,7 @@ console.log(`${passed} passed${process.exitCode ? ", some FAILED" : ""}`);
   t("bigwalk: the turn — dice by the colour of the square, the square before the cards, forward only, three shop cards", () => {
     const rem = G.rounds.reminder(BH.ctxOf(base)).join(" ");
     assert.match(rem, /Светлая — \*один\*.*Серая — \*два\*, выбери один.*Тёмная — \*два\*, иди на сумму/);
-    assert.match(rem, /клетку в конце хода, а \*потом\* карты/);
+    assert.match(rem, /велит клетка под фишкой, \*потом\* — карты/);
     assert.match(rem, /\*вперёд\* в свой ход/);
     assert.match(rem, /не больше \*трёх\*/);
     assert.match(rem, /нужна \*6\*/);
