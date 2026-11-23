@@ -1,0 +1,404 @@
+{
+  "version": "0.39.2",
+  "approvedScenes": [
+    "shuffle",
+    "start",
+    "coins",
+    "dice",
+    "portal",
+    "gum",
+    "finish",
+    "mine"
+  ],
+  "sources": [
+    "https://gaga.ru/game/bolshaya-brodilka/",
+    "https://gaga.ru/gaga/files/pdf/rules/ru/3037.pdf",
+    "https://gaga.ru/game/bolshaya-brodilka-eshchyo-bolshe-priklyuchenij/"
+  ],
+  "nativeCells": [
+    {
+      "id": "good",
+      "name": "Целый сундук",
+      "source": "independent-rules-hi-2.png",
+      "crop": [
+        320,
+        572,
+        436,
+        364
+      ],
+      "output": [
+        436,
+        364
+      ]
+    },
+    {
+      "id": "bad",
+      "name": "Сломанный сундук",
+      "source": "independent-rules-hi-2.png",
+      "crop": [
+        320,
+        1020,
+        440,
+        390
+      ],
+      "output": [
+        440,
+        390
+      ]
+    },
+    {
+      "id": "shop",
+      "name": "Лавка Джо",
+      "source": "independent-rules-hi-2.png",
+      "crop": [
+        330,
+        1496,
+        732,
+        510
+      ],
+      "output": [
+        732,
+        510
+      ]
+    },
+    {
+      "id": "portal",
+      "name": "Портал",
+      "source": "independent-rules-hi-2.png",
+      "crop": [
+        324,
+        2104,
+        500,
+        500
+      ],
+      "output": [
+        500,
+        500
+      ]
+    },
+    {
+      "id": "tadam",
+      "name": "Та-Дам!",
+      "source": "independent-board-hi-1.png",
+      "crop": [
+        1942.5,
+        1262.5,
+        215,
+        217.5
+      ],
+      "output": [
+        215,
+        218
+      ]
+    },
+    {
+      "id": "colors",
+      "name": "Красные и зелёные",
+      "source": "independent-rules-hi-2.png",
+      "crop": [
+        2092,
+        1518,
+        330,
+        538
+      ],
+      "output": [
+        330,
+        538
+      ]
+    },
+    {
+      "id": "gum",
+      "name": "Жвачка",
+      "source": "independent-rules-hi-2.png",
+      "crop": [
+        2048,
+        2226,
+        606,
+        338
+      ],
+      "output": [
+        606,
+        338
+      ]
+    },
+    {
+      "id": "safe",
+      "name": "Финиш-сейф",
+      "source": "independent-board-hi-1.png",
+      "crop": [
+        1362.5,
+        1035,
+        982.5,
+        665
+      ],
+      "output": [
+        983,
+        665
+      ]
+    },
+    {
+      "id": "mine",
+      "name": "Шахта",
+      "source": "independent-board-hi-1.png",
+      "crop": [
+        2065,
+        3090,
+        210,
+        267.5
+      ],
+      "output": [
+        210,
+        268
+      ]
+    },
+    {
+      "id": "bike",
+      "name": "Велосипед",
+      "source": "independent-board-hi-1.png",
+      "crop": [
+        2450,
+        3480,
+        175,
+        180
+      ],
+      "output": [
+        175,
+        180
+      ]
+    },
+    {
+      "id": "luck",
+      "name": "Кубик удачи",
+      "source": "independent-board-hi-1.png",
+      "crop": [
+        2002.5,
+        2155,
+        152.5,
+        137.5
+      ],
+      "output": [
+        153,
+        138
+      ]
+    },
+    {
+      "id": "spread",
+      "name": "Удачный расклад",
+      "source": "independent-board-hi-1.png",
+      "crop": [
+        3937.5,
+        1205,
+        200,
+        247.5
+      ],
+      "output": [
+        200,
+        248
+      ]
+    },
+    {
+      "id": "tornado",
+      "name": "Смерч",
+      "source": "independent-board-hi-1.png",
+      "crop": [
+        4350,
+        1315,
+        262.5,
+        342.5
+      ],
+      "output": [
+        263,
+        343
+      ]
+    },
+    {
+      "id": "tribute",
+      "name": "Дань",
+      "source": "independent-board-hi-1.png",
+      "crop": [
+        4545,
+        2607.5,
+        225,
+        795
+      ],
+      "output": [
+        225,
+        795
+      ]
+    },
+    {
+      "id": "fight",
+      "name": "Схватка",
+      "source": "independent-board-hi-1.png",
+      "crop": [
+        4295,
+        3112.5,
+        192.5,
+        217.5
+      ],
+      "output": [
+        193,
+        218
+      ]
+    },
+    {
+      "id": "nooo",
+      "name": "Нееет!",
+      "source": "independent-board-hi-1.png",
+      "crop": [
+        1332.5,
+        3092.5,
+        417.5,
+        350
+      ],
+      "output": [
+        418,
+        350
+      ]
+    },
+    {
+      "id": "cross",
+      "name": "Перекрёсток",
+      "source": "independent-board-hi-1.png",
+      "crop": [
+        2645,
+        2925,
+        697.5,
+        200
+      ],
+      "output": [
+        698,
+        200
+      ]
+    }
+  ],
+  "cover": {
+    "source": "D:/GitHub/BoardHelper/sources/dl-bigwalk/hg-bolshaja-brodilka-000.jpg",
+    "method": "Built-in imagegen perspective correction from official source; visual edit, not pixel-preserving homography.",
+    "userApproved": true
+  },
+  "assets": {
+    "shuffle": [
+      768,
+      530
+    ],
+    "start": [
+      768,
+      530
+    ],
+    "coins": [
+      768,
+      494
+    ],
+    "dice": [
+      768,
+      494
+    ],
+    "portal": [
+      768,
+      514
+    ],
+    "gum": [
+      768,
+      514
+    ],
+    "finish": [
+      768,
+      510
+    ],
+    "mine": [
+      768,
+      510
+    ],
+    "tile-good": [
+      436,
+      364
+    ],
+    "tile-bad": [
+      440,
+      390
+    ],
+    "tile-shop": [
+      732,
+      510
+    ],
+    "tile-portal": [
+      500,
+      500
+    ],
+    "tile-tadam": [
+      215,
+      218
+    ],
+    "tile-colors": [
+      330,
+      538
+    ],
+    "tile-gum": [
+      606,
+      338
+    ],
+    "tile-safe": [
+      983,
+      665
+    ],
+    "tile-mine": [
+      210,
+      268
+    ],
+    "tile-bike": [
+      175,
+      180
+    ],
+    "tile-luck": [
+      153,
+      138
+    ],
+    "tile-spread": [
+      200,
+      248
+    ],
+    "tile-tornado": [
+      263,
+      343
+    ],
+    "tile-tribute": [
+      225,
+      795
+    ],
+    "tile-fight": [
+      193,
+      218
+    ],
+    "tile-nooo": [
+      418,
+      350
+    ],
+    "tile-cross": [
+      698,
+      200
+    ],
+    "deck-slots": [
+      1480,
+      340
+    ],
+    "tadam-original": [
+      570,
+      220
+    ],
+    "abilities": [
+      1380,
+      770
+    ],
+    "cover": [
+      1254,
+      1254
+    ]
+  },
+  "publisherClarifications": [
+    "2026-10-26: Волшебный Куб applies to mine and safe",
+    "2026-07-14: +1 to sum of two dice",
+    "2024-02-27: pay 5 for shop cards from other effects"
+  ],
+  "audit": "Independent preview and cover audits completed; integration checked before release."
+}

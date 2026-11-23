@@ -1372,10 +1372,12 @@ console.log(`${passed} passed${process.exitCode ? ", some FAILED" : ""}`);
     for (const q of G.faq) if (q.src) assert.ok(BH.FAQ_SRC[q.src], q.src);
     const ids = G.ruleGroups.flatMap(gr => gr.ids); for (const r of G.rules) assert.strictEqual(ids.filter(x => x === r.id).length, 1, r.id);
     assert.strictEqual(ids.length, G.rules.length);
-    // the book is silent on who starts and on +1 in the mine: the app says so instead of inventing
+    // Turn order is unspecified; the publisher has clarified the persistent +1 bonus.
     assert.match(G.first.hint, /не сказано/); assert.ok(!/часовой/.test(G.first.hint), "the direction of play is not in the sources");
     assert.ok(G.faq.find(q => /7 или 8/.test(q.q) && q.src === "disputed"), "a result above 6 at the safe is marked disputed");
-    assert.ok(G.faq.find(q => /шахте/.test(q.q) && q.src === "disputed"));
+    const cube = G.faq.find(q => /Действует ли.*шахте/.test(q.q));
+    assert.ok(cube && !cube.src, "publisher resolved the +1 question");
+    assert.match(cube.a, /постоянно.*любому броску.*шахту.*сейф.*к сумме, а не к каждому/s);
   });
   t("bigwalk: in-game texts are neutral — no «-л» forms", () => {
     const texts = [...G.rounds.reminder(BH.ctxOf(withAb)), ...G.cards.map(k => k.does), ...G.scoring.end(), ...BH.raceGoals(G, base).map(x => x.text + " " + x.ask), ...BH.setupSteps(withAb).map(x => x.text)].join(" ");
