@@ -1,0 +1,212 @@
+{
+  "version": "0.40.1",
+  "sources": [
+    "https://hobbyworld.ru/den-sirka",
+    "https://hobbygames.ru/download/rules/rules_mice.pdf",
+    "https://abacusspiele.de/wp-content/uploads/2021/01/AllesKaese_Regel_DE.pdf"
+  ],
+  "approvedScenes": [
+    "shuffle",
+    "pantry",
+    "discard-space",
+    "match",
+    "peek",
+    "take-discard",
+    "refill",
+    "third-trap"
+  ],
+  "cover": {
+    "source": "D:/GitHub/BoardHelper/sources/dl-cheese/cover-hw.jpg",
+    "method": "Generative perspective correction of official photograph; not pixel-preserving."
+  },
+  "nativeCards": [
+    {
+      "name": "back-1-photo",
+      "label": "Рубашка 1",
+      "box": [
+        75,
+        164,
+        177,
+        230
+      ],
+      "source": "https://hobbyworld.cdnvideo.ru/image/cache/hobbyworld/data/HobbyWorld/Den_sirka/sir3-1200x800.jpg",
+      "note": "Unretouched photographic crop; perspective and overlap retained"
+    },
+    {
+      "name": "back-2-photo",
+      "label": "Рубашка 2",
+      "box": [
+        246,
+        166,
+        170,
+        230
+      ],
+      "source": "https://hobbyworld.cdnvideo.ru/image/cache/hobbyworld/data/HobbyWorld/Den_sirka/sir3-1200x800.jpg",
+      "note": "Unretouched photographic crop; perspective and overlap retained"
+    },
+    {
+      "name": "back-3-photo",
+      "label": "Рубашка 3",
+      "box": [
+        407,
+        167,
+        173,
+        230
+      ],
+      "source": "https://hobbyworld.cdnvideo.ru/image/cache/hobbyworld/data/HobbyWorld/Den_sirka/sir3-1200x800.jpg",
+      "note": "Unretouched photographic crop; perspective and overlap retained"
+    },
+    {
+      "name": "back-4-photo",
+      "label": "Рубашка 4",
+      "box": [
+        573,
+        167,
+        168,
+        230
+      ],
+      "source": "https://hobbyworld.cdnvideo.ru/image/cache/hobbyworld/data/HobbyWorld/Den_sirka/sir3-1200x800.jpg",
+      "note": "Unretouched photographic crop; perspective and overlap retained"
+    },
+    {
+      "name": "back-5-photo",
+      "label": "Рубашка 5",
+      "box": [
+        731,
+        167,
+        170,
+        230
+      ],
+      "source": "https://hobbyworld.cdnvideo.ru/image/cache/hobbyworld/data/HobbyWorld/Den_sirka/sir3-1200x800.jpg",
+      "note": "Unretouched photographic crop; perspective and overlap retained"
+    },
+    {
+      "name": "back-6-photo",
+      "label": "Рубашка 6",
+      "box": [
+        890,
+        168,
+        188,
+        230
+      ],
+      "source": "https://hobbyworld.cdnvideo.ru/image/cache/hobbyworld/data/HobbyWorld/Den_sirka/sir3-1200x800.jpg",
+      "note": "Unretouched photographic crop; perspective and overlap retained"
+    },
+    {
+      "name": "mouse-photo",
+      "label": "Мышь — оригинальное фото",
+      "box": [
+        982,
+        390,
+        194,
+        252
+      ],
+      "source": "https://hobbyworld.cdnvideo.ru/image/cache/hobbyworld/data/HobbyWorld/Den_sirka/sir3-1200x800.jpg",
+      "note": "Unretouched photographic crop; perspective and overlap retained"
+    },
+    {
+      "name": "trap-photo",
+      "label": "Мышеловка — оригинальное фото",
+      "box": [
+        339,
+        416,
+        224,
+        153
+      ],
+      "source": "https://hobbyworld.cdnvideo.ru/image/cache/hobbyworld/data/HobbyWorld/Den_sirka/sir6-1200x800.jpg",
+      "note": "Unretouched photographic crop; perspective and overlap retained"
+    }
+  ],
+  "assets": {
+    "shuffle": [
+      768,
+      425
+    ],
+    "pantry": [
+      768,
+      425
+    ],
+    "discard-space": [
+      768,
+      460
+    ],
+    "match": [
+      768,
+      460
+    ],
+    "peek": [
+      768,
+      515
+    ],
+    "take-discard": [
+      768,
+      515
+    ],
+    "refill": [
+      768,
+      500
+    ],
+    "third-trap": [
+      768,
+      500
+    ],
+    "tile-h1": [
+      960,
+      640
+    ],
+    "tile-h2": [
+      960,
+      640
+    ],
+    "tile-h3": [
+      960,
+      640
+    ],
+    "tile-h4": [
+      960,
+      640
+    ],
+    "tile-h5": [
+      960,
+      640
+    ],
+    "tile-h6": [
+      960,
+      640
+    ],
+    "cover": [
+      910,
+      1728
+    ]
+  },
+  "deckTiles": {
+    "backs": "Original publisher photographs",
+    "faces": "Crops from user-approved instruction sheet, faithfully redrawn from official card photos: mouse [848,143,162,218], trap [869,621,162,235]. Original PDF faces were too low-resolution.",
+    "counts": [
+      [
+        4,
+        2
+      ],
+      [
+        4,
+        2
+      ],
+      [
+        3,
+        3
+      ],
+      [
+        3,
+        3
+      ],
+      [
+        2,
+        4
+      ],
+      [
+        2,
+        4
+      ]
+    ]
+  }
+}

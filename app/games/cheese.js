@@ -5,50 +5,97 @@
    4 mice and 2 traps, under 3 and 4 — 3 and 3, under 5 and 6 — 2 and 4 (the picture on page 1).
    No rounds and no points: the play screen keeps the turn short and the deck at hand; the end is a count of the holes
    (the player with the third trap is out), equal — the most mouse cards. Every rule the app enforces is listed in
-   docs/rules-check.md with its source and its test. The pictures are our own simple drawings. */
+   docs/rules-check.md with its source and its test. Approved explanatory scenes and card illustrations accompany the rules. */
 (function () {
   "use strict";
   const BH = window.BH;
 
-  /* ---------- our own drawings: a cheese card back with its holes, a mouse, a trap, the die ---------- */
-  const PIPS = { 1: [[0, 0]], 2: [[-1, -1], [1, 1]], 3: [[-1, -1], [0, 0], [1, 1]], 4: [[-1, -1], [1, -1], [-1, 1], [1, 1]],
-    5: [[-1, -1], [1, -1], [0, 0], [-1, 1], [1, 1]], 6: [[-1, -1], [1, -1], [-1, 0], [1, 0], [-1, 1], [1, 1]] };
-  // a card back: x, y — the top left corner, w — the width (the card is 2:3); n holes like the pips of a die
-  const back = (x, y, w, n, glow) => {
-    const h = w * 1.5, cx = x + w / 2, cy = y + h / 2, dx = w * 0.24, dy = h * 0.24, r = w * 0.1;
-    return `<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="${w * 0.1}" fill="#F7CF4F" stroke="${glow ? "#E2572B" : "#C98A1B"}" stroke-width="${glow ? 4 : 2}"/>` +
-      (n ? PIPS[n].map(([i, j]) => `<circle cx="${cx + i * dx}" cy="${cy + j * dy}" r="${r}" fill="#D9961F"/>`).join("") : "");
+  // Approved scenes and card illustrations based on original publisher materials.
+  const plates = {
+  "shuffle": [
+    768,
+    425,
+    "Перемешайте 36 карт сырными дырками вверх."
+  ],
+  "pantry": [
+    768,
+    425,
+    "Кладовка: шесть карт в ряд лицевой стороной вниз."
+  ],
+  "discard-space": [
+    768,
+    460,
+    "Рядом с резервом оставьте место для сброса."
+  ],
+  "match": [
+    768,
+    460,
+    "Выпало 5: выберите одну из двух карт с пятью дырками."
+  ],
+  "peek": [
+    768,
+    515,
+    "Нет совпадения: тайком посмотрите карту и верните на то же место."
+  ],
+  "take-discard": [
+    768,
+    515,
+    "Забрать карту лицом вверх или удалить не глядя."
+  ],
+  "refill": [
+    768,
+    500,
+    "Пополните свободное место верхней картой резерва."
+  ],
+  "third-trap": [
+    768,
+    500,
+    "Третья мышеловка завершает игру. Этот игрок выбывает."
+  ],
+  "tile-h1": [
+    960,
+    640,
+    "Карты: 1 дырка, 4 с мышами и 2 с мышеловками."
+  ],
+  "tile-h2": [
+    960,
+    640,
+    "Карты: 2 дырки, 4 с мышами и 2 с мышеловками."
+  ],
+  "tile-h3": [
+    960,
+    640,
+    "Карты: 3 дырки, 3 с мышами и 3 с мышеловками."
+  ],
+  "tile-h4": [
+    960,
+    640,
+    "Карты: 4 дырки, 3 с мышами и 3 с мышеловками."
+  ],
+  "tile-h5": [
+    960,
+    640,
+    "Карты: 5 дырок, 2 с мышами и 4 с мышеловками."
+  ],
+  "tile-h6": [
+    960,
+    640,
+    "Карты: 6 дырок, 2 с мышами и 4 с мышеловками."
+  ],
+  "cover": [
+    910,
+    1728,
+    "День сырка — обложка по официальной фотографии с исправленной перспективой."
+  ]
+};
+  const picture = (key, fit = false) => {
+    const [width, height, caption] = plates[key];
+    return `<img class="a-wide flip7-plate cheese-plate" style="display:block;width:100%;height:${fit ? '100%' : 'auto'};min-height:0;object-fit:contain" src="games/cheese-art/${key}.webp" alt="${caption}" width="${width}" height="${height}" decoding="async">`;
   };
-  const stack = (x, y, w, n) => back(x + 8, y - 8, w, 0) + back(x + 4, y - 4, w, 0) + back(x, y, w, n);
-  const mouse = (cx, cy, s) => `<g transform="translate(${cx} ${cy}) scale(${s})"><circle cx="-11" cy="-10" r="8" fill="#B9BCC8"/><circle cx="11" cy="-10" r="8" fill="#B9BCC8"/>` +
-    `<circle cx="-11" cy="-10" r="4.5" fill="#E9A3AE"/><circle cx="11" cy="-10" r="4.5" fill="#E9A3AE"/><ellipse cx="0" cy="3" rx="13" ry="12" fill="#D3D5DE"/>` +
-    `<circle cx="-5" cy="0" r="1.8" fill="#2B2B33"/><circle cx="5" cy="0" r="1.8" fill="#2B2B33"/><circle cx="0" cy="9" r="3.5" fill="#E2572B"/></g>`;
-  const trap = (cx, cy, s) => `<g transform="translate(${cx} ${cy}) scale(${s})"><rect x="-17" y="-12" width="34" height="24" rx="3" fill="#C8935A" stroke="#8A5A2B" stroke-width="2"/>` +
-    `<path d="M-12 6 H12 M-12 6 V-6 H12 V6" fill="none" stroke="#5B6472" stroke-width="3" stroke-linejoin="round"/><circle cx="0" cy="6" r="3" fill="#5B6472"/></g>`;
-  const die = (x, y, w, n) => `<rect x="${x}" y="${y}" width="${w}" height="${w}" rx="${w * 0.18}" fill="#FFFDF6" stroke="#4A4A55" stroke-width="2"/>` +
-    PIPS[n].map(([i, j]) => `<circle cx="${x + w / 2 + i * w * 0.26}" cy="${y + w / 2 + j * w * 0.26}" r="${w * 0.09}" fill="#2B2B33"/>`).join("");
-  const svg = (w, h, body, label) => `<svg viewBox="0 0 ${w} ${h}" role="img" aria-label="${label}" preserveAspectRatio="xMidYMid meet">${body}</svg>`;
-  const ROW = [2, 5, 3, 5, 4, 1];   // the pantry of the picture on page 1
-  const pantry = (y, glow) => ROW.map((n, i) => back(28 + i * 58, y, 48, n, glow && glow(n, i))).join("");
-  const art = {
-    shuffle: svg(400, 300, stack(150, 70, 100, 3), "Стопка из 36 карт лицевой стороной вниз: сверху видны сырные дырки."),
-    pantry: svg(400, 300, stack(170, 26, 52, 2) + pantry(150) + die(320, 40, 40, 5), "Резерв стопкой, под ним кладовка — 6 карт в ряд лицевой стороной вниз, рядом кубик."),
-    discard: svg(400, 300, stack(110, 90, 72, 4) + `<path d="M200 150 H246" stroke="#C98A1B" stroke-width="4" marker-end="url(#ch-ar)"/>` +
-      `<defs><marker id="ch-ar" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="5" markerHeight="5" orient="auto"><path d="M0 0 L10 5 L0 10z" fill="#C98A1B"/></marker></defs>` +
-      `<rect x="262" y="96" width="72" height="108" rx="7" fill="none" stroke="#9A9AA6" stroke-width="2" stroke-dasharray="6 5"/>`, "Рядом с резервом — место для стопки сброса."),
-    turn: svg(400, 176, die(176, 10, 48, 5) + pantry(84, n => n === 5), "На кубике 5 — в кладовке подходят две карты с пятью дырками."),
-    take: svg(400, 300, back(70, 50, 100, 5) + `<rect x="230" y="50" width="100" height="150" rx="10" fill="#FFF6DA" stroke="#C98A1B" stroke-width="2"/>` + mouse(280, 112, 2.2) +
-      `<path d="M262 160 l10 -12 l10 12 l10 -12 l6 8 v14 h-36z" fill="#F7CF4F" stroke="#C98A1B" stroke-width="2"/>`, "Рубашка с сырными дырками и лицевая сторона: мышь с сыром."),
-    trap: svg(400, 300, back(70, 50, 100, 6) + `<rect x="230" y="50" width="100" height="150" rx="10" fill="#2B3F7A" stroke="#1C2A55" stroke-width="2"/>` + trap(280, 125, 2.2),
-      "Рубашка с сырными дырками и лицевая сторона: мышеловка."),
-  };
-  // a tile of the deck: the back with n holes, and what is under such cards — mice and traps, as on page 1
-  const MICE = { 1: 4, 2: 4, 3: 3, 4: 3, 5: 2, 6: 2 };
-  const tile = n => svg(240, 168, back(22, 14, 92, n) +
-    Array.from({ length: 6 }, (_, i) => { const x = 146 + (i % 2) * 44, y = 30 + Math.floor(i / 2) * 46, m = i < MICE[n];
-      return `<rect x="${x - 19}" y="${y - 19}" width="38" height="38" rx="6" fill="${m ? "#FFF6DA" : "#2B3F7A"}" stroke="${m ? "#C98A1B" : "#1C2A55"}" stroke-width="1.5"/>` + (m ? mouse(x, y, 0.85) : trap(x, y, 0.8)); }).join(""),
-    `Карты с ${n} ${BH.plural(n, "дыркой", "дырками", "дырками")}: ${MICE[n]} с мышами, ${6 - MICE[n]} с мышеловками.`);
-  const cover = '<img class="cheese-cover" src="games/cheese-art/cover.webp" alt="" width="512" height="512">';
+  const MICE = {1:4,2:4,3:3,4:3,5:2,6:2};
+  const tile = n => picture('tile-h' + n, true);
+  const art = {shuffle:picture('shuffle',true),pantry:picture('pantry',true),discard:picture('discard-space',true),turn:picture('match')};
+  const cover = picture('cover',true);
 
   const holes = n => `${n} ${BH.plural(n, "дырка", "дырки", "дырок")}`;
   const cards = [1, 2, 3, 4, 5, 6].map(n => {
@@ -130,19 +177,19 @@
     options: [],
 
     rules: [
-      { id: "goal", art: art.take + art.trap, page: 1, title: "Цель игры", keys: "цель победа дырки сыр мышеловка выбывает",
+      { id: "goal", art: picture("take-discard") + picture("third-trap"), page: 1, title: "Цель игры", keys: "цель победа дырки сыр мышеловка выбывает",
         body: "<p>Вы — мыши и собираете как можно больше сырных дырок. Но чем больше дырок на карте, тем вероятнее, что с другой стороны мышеловка. Иногда можно подсмотреть, что на лицевой стороне, а иногда приходится рассчитывать на удачу.</p><p>Мышь, попавшая в три мышеловки, выбывает. Побеждает мышь, собравшая больше всех сырных дырок.</p>" },
-      { id: "components", art: tile(1) + tile(6), page: 1, title: "Что в коробке", keys: "состав компоненты сколько карт мышеловок мышей кубик рубашка",
+      { id: "components", art: picture("tile-h1") + picture("tile-h6"), page: 1, title: "Что в коробке", keys: "состав компоненты сколько карт мышеловок мышей кубик рубашка",
         body: "<ul><li>36 карт. На лицевой стороне — 18 мышей с сыром и 18 мышеловок. На рубашке — от 1 до 6 сырных дырок, карт с каждым числом дырок по 6.</li><li>Кубик и правила.</li></ul><p>Под картами с 1 и 2 дырками — по 4 мыши и 2 мышеловки, с 3 и 4 — по 3 и 3, с 5 и 6 — по 2 мыши и 4 мышеловки. Так нарисовано в составе игры.</p>" },
-      { id: "setup", art: art.pantry, page: 1, title: "Подготовка", keys: "подготовка резерв кладовка шесть карт первый младший",
+      { id: "setup", art: picture("shuffle") + picture("pantry") + picture("discard-space"), page: 1, title: "Подготовка", keys: "подготовка резерв кладовка шесть карт первый младший",
         body: "<ol><li>Перетасуйте все 36 карт и положите стопкой лицевой стороной вниз — это резерв.</li><li>Возьмите из резерва 6 верхних карт и выложите в ряд лицевой стороной вниз в середину стола — это кладовка.</li><li>Первым ходит самый младший, дальше — по часовой стрелке.</li></ol>" },
-      { id: "turn", art: art.turn, page: 2, title: "Ход", keys: "ход кубик бросок нет карты есть карта подсмотреть посмотреть вернуть",
+      { id: "turn", art: picture("match") + picture("peek"), page: 2, title: "Ход", keys: "ход кубик бросок нет карты есть карта подсмотреть посмотреть вернуть",
         body: "<p>В свой ход сначала бросьте кубик и поищите в кладовке карты с выпавшим числом сырных дырок.</p><ol><li><b>Такой карты нет.</b> Возьмите из кладовки любую карту и втайне от соперников посмотрите её лицевую сторону. Потом верните её лицевой стороной вниз на то же место.</li><li><b>Такая карта есть.</b> Выберите одну такую карту и решите: забрать её себе или удалить из игры.</li></ol><p>После этого ход переходит к следующему игроку.</p>" },
-      { id: "take", art: art.take + art.trap, page: 2, title: "Забрать или удалить", keys: "забрать удалить сброс не глядя лицевой стороной вверх резерв пополнить",
+      { id: "take", art: picture("take-discard") + picture("refill"), page: 2, title: "Забрать или удалить", keys: "забрать удалить сброс не глядя лицевой стороной вверх резерв пополнить",
         body: "<ul><li><b>Забрать.</b> Положите карту перед собой лицевой стороной вверх — будь там мышь с сыром или мышеловка.</li><li><b>Удалить.</b> Положите карту в стопку сброса, не глядя на её лицевую сторону.</li><li>В обоих случаях положите на её место в кладовке верхнюю карту резерва лицевой стороной вниз.</li></ul>" },
-      { id: "small", art: art.discard, page: 2, title: "Вдвоём и втроём", keys: "вдвоём втроём два три игрока сброс верхняя карта резерва конец хода",
+      { id: "small", art: picture("discard-space"), page: 2, title: "Вдвоём и втроём", keys: "вдвоём втроём два три игрока сброс верхняя карта резерва конец хода",
         body: "<p>Вдвоём и втроём рядом с резервом отведите место для стопки сброса. Каждый игрок в конце своего хода перекладывает туда верхнюю карту резерва.</p><p>В книге это правило стоит в пункте о подсматривании. Делать так каждый ход или только после подсматривания, в книге не уточнено — смотрите частые вопросы.</p>" },
-      { id: "end", page: 2, title: "Конец игры", keys: "конец победа третья мышеловка выбывает резерв кончился ничья больше карт подсчёт дырок",
+      { id: "end", art: picture("third-trap"), page: 2, title: "Конец игры", keys: "конец победа третья мышеловка выбывает резерв кончился ничья больше карт подсчёт дырок",
         body: "<ul><li>Игра кончается, как только кто-то забирает себе из кладовки третью мышеловку. Этот игрок выбывает.</li><li>Игра кончается и тогда, когда в резерве кончаются карты.</li><li>Остальные считают свои сырные дырки. Побеждает тот, у кого их больше всех.</li><li>Дырок поровну — побеждает тот, кто забрал больше карт.</li><li>Карты мышеловок при этом не учитываются.</li></ul>" },
     ],
 
