@@ -9,7 +9,7 @@ const ctx = {
 };
 ctx.window = ctx;
 vm.createContext(ctx);
-for (const f of ["js/util.js", "js/store.js", "js/games.js", "js/chances.js", "js/art.js", "games/flip7.js", "games/flip7v.js", "games/faraway.js", "games/thegang.js", "games/crokinole.js", "games/coconuts.js", "games/goldfever.js", "games/zoo.js", "games/toybattle.js", "games/dobble.js", "games/ribbit.js", "games/jackal.js", "games/bigwalk.js"])
+for (const f of ["js/util.js", "js/store.js", "js/games.js", "js/chances.js", "js/art.js", "games/flip7.js", "games/flip7v.js", "games/faraway.js", "games/thegang.js", "games/crokinole.js", "games/coconuts.js", "games/goldfever.js", "games/zoo.js", "games/toybattle.js", "games/dobble.js", "games/ribbit.js", "games/jackal.js", "games/bigwalk.js", "games/cheese.js"])
   vm.runInContext(fs.readFileSync(path.join(__dirname, "..", "app", f), "utf8"), ctx, { filename: f });
 const BH = ctx.BH, g = BH.game("flip7");
 let passed = 0;
@@ -1481,4 +1481,86 @@ console.log(`${passed} passed${process.exitCode ? ", some FAILED" : ""}`);
     assert.ok(!/золот|тайл|фишк[аи] пират|сокровищ/i.test(texts), "монеты, клетки, пираты — as in the book");
   });
   console.log(`jackal: ${passed - before} passed${process.exitCode ? ", some FAILED" : ""}`);
+}
+{
+  // День сырка: the Russian rules of Hobby World, 2 pages (docs/rules-check.md)
+  const G = BH.game("cheese"), before = passed;
+  const sess = n => ({ gameId: "cheese", players: ["a", "b", "c", "d", "e", "f"].slice(0, n), exp: [], opts: {}, rounds: [] });
+  t("cheese p.1: 2–6 players; a race without rounds or points; the youngest starts", () => {
+    assert.strictEqual(G.players.min, 2); assert.strictEqual(G.players.max, 6);
+    assert.ok(BH.isRace(G) && !BH.isCoop(G) && !BH.isEndScored(G)); assert.strictEqual(G.rounds.leader, false);
+    assert.ok(G.first && /младший/.test(G.first.hint) && /часовой/.test(G.first.hint));
+    assert.strictEqual(G.age, "5+", "the rules: «от 5 лет»");
+  });
+  t("cheese p.1: the deck — 36 cards, 6 of each number of holes, 18 mice and 18 traps; more holes, more traps", () => {
+    const mice = G.cards.map(k => +k.does.match(/\*(\d)\* мыш/)[1]), traps = G.cards.map(k => +k.does.match(/\*(\d)\* мышеловк/)[1]);
+    assert.strictEqual(mice.join(), "4,4,3,3,2,2"); assert.strictEqual(traps.join(), "2,2,3,3,4,4");
+    assert.strictEqual(mice.reduce((a, b) => a + b) + traps.reduce((a, b) => a + b), 36);
+    assert.strictEqual(mice.reduce((a, b) => a + b), 18);
+    assert.ok(G.cards.every((k, i) => mice[i] + traps[i] === 6 && k.tag === `${traps[i]} ${BH.plural(traps[i], "мышеловка", "мышеловки", "мышеловок")} из 6`));
+    // the most holes one player can have: all the mouse cards
+    assert.strictEqual(G.scoring.count.max, 4 * 1 + 4 * 2 + 3 * 3 + 3 * 4 + 2 * 5 + 2 * 6);
+  });
+  t("cheese p.1: setup — the reserve face down, 6 cards in a row; a discard pile, with 2–3 the top reserve card each turn", () => {
+    const steps = n => BH.setupSteps(sess(n));
+    assert.ok(steps(4).find(s => s.id === "shuffle").text.includes("*36*"));
+    assert.ok(/\*6\*.*кладовка/s.test(steps(4).find(s => s.id === "pantry").text));
+    for (const n of [2, 3]) assert.ok(/верхнюю карту резерва/.test(steps(n).find(s => s.id === "discard").text), n);
+    for (const n of [4, 6]) assert.ok(!/верхнюю карту резерва/.test(steps(n).find(s => s.id === "discard").text), n);
+  });
+  t("cheese p.2: the turn — no such card: peek and put back; such a card: take it face up or discard unseen; refill from the reserve", () => {
+    const r = n => G.rounds.reminder(BH.ctxOf(sess(n))).join(" ");
+    assert.match(r(4), /нет\*.*любую карту кладовки.*посмотри.*то же место/s);
+    assert.match(r(4), /есть\*.*\*забрать\* себе или \*удалить\* в сброс/s);
+    assert.match(r(4), /лицевой стороной вверх\*, даже если там мышеловка/);
+    assert.match(r(4), /\*не глядя\*/);
+    assert.match(r(4), /верхнюю карту \*резерва\*/);
+    assert.ok(/В конце хода переложи/.test(r(3)) && !/В конце хода переложи/.test(r(4)), "the burnt reserve card only with 2 and 3");
+    assert.ok(G.faq.some(f => f.ref === "end" && /мышеловок при этом не учитываются/.test(f.a) && f.src === "disputed"), "trap holes: the book's sentence stands after the tie rule — disputed");
+    assert.ok(G.faq.some(f => f.ref === "small" && f.src === "disputed"), "each turn or only after a peek — disputed");
+  });
+  t("cheese p.2: the end — the third trap puts its player out; the most holes wins, equal — the most mouse cards", () => {
+    const C = G.scoring.count;
+    assert.ok(Array.isArray(G.scoring.goals) && !BH.raceGoals(G, sess(3)).length, "no win at once: the end is always a count");
+    assert.strictEqual(C.how, "reserve"); assert.strictEqual(C.out.how, "trap");
+    let r = BH.raceCountWinners(G, ["a", "b", "c"], { b: 12, c: 9 }, "a"); assert.deepStrictEqual([...r.winners], ["b"]);
+    // the one who is out cannot win, whatever is typed for them
+    r = BH.raceCountWinners(G, ["a", "b", "c"], { a: 30, b: 12, c: 9 }, "a"); assert.deepStrictEqual([...r.winners], ["b"], "out is not counted");
+    r = BH.raceCountWinners(G, ["a", "b", "c"], { a: 5, b: 12, c: 9 }, null); assert.deepStrictEqual([...r.winners], ["b"], "the reserve ran out: everyone counted");
+    // a tie: the one with more mouse cards (picked) wins; not picked — still open; equal cards too — a shared win
+    r = BH.raceCountWinners(G, ["a", "b", "c"], { a: 10, b: 10, c: 4 }, null); assert.ok(r.open && !r.winners.length);
+    r = BH.raceCountWinners(G, ["a", "b", "c"], { a: 10, b: 10, c: 4 }, null, "b"); assert.deepStrictEqual([...r.winners], ["b"]);
+    r = BH.raceCountWinners(G, ["a", "b", "c"], { a: 10, b: 10, c: 4 }, null, "c"); assert.ok(r.open, "only a tied player can be picked");
+    r = BH.raceCountWinners(G, ["a", "b", "c"], { a: 10, b: 10, c: 4 }, null, "all"); assert.deepStrictEqual([...r.winners], ["a", "b"]);
+    assert.match(G.rules.find(x => x.id === "end").body, /Карты мышеловок при этом не учитываются/);
+    assert.ok(G.faq.some(f => /поровну/.test(f.q) && f.src === "disputed"), "equal cards too: the book says nothing");
+  });
+  t("cheese: other races keep their tie rule", () => {
+    const T = BH.game("toybattle"), K = BH.game("coconuts");
+    assert.deepStrictEqual([...BH.raceCountWinners(T, ["a", "b"], { a: 3, b: 3 }, null, "a").winners], ["b"], "Toy Battle: who ended the game loses");
+    assert.deepStrictEqual([...BH.raceCountWinners(K, ["a", "b"], { a: 3, b: 3 }, null, "a").winners], ["a"], "Coconuts: who shot last wins");
+    assert.ok(BH.raceCountWinners(K, ["a", "b"], { a: 3, b: 3 }, null, "all").open, "no shared win where the game has no such rule");
+  });
+  t("cheese: how it ended and who is out are kept; nonsense dropped", () => {
+    BH.replaceFromSync({ players: [{ id: "a", name: "А" }, { id: "b", name: "Б" }, { id: "c", name: "В" }], places: [], placesTouched: true,
+      sessions: [{ id: "m1", gameId: "cheese", players: ["a", "b", "c"], status: "finished", rounds: [], winners: ["b"], race: { how: "trap", counts: { b: 12, c: 9 }, out: "a" } },
+        { id: "m2", gameId: "cheese", players: ["a", "b"], status: "finished", rounds: [], winners: ["a"], race: { how: "reserve", counts: { a: 14, b: 9 }, out: "z" } }] });
+    const by = id => BH.state.sessions.find(x => x.id === id);
+    assert.strictEqual(JSON.stringify(by("m1").race), JSON.stringify({ how: "trap", counts: { b: 12, c: 9 }, out: "a" }));
+    assert.strictEqual(JSON.stringify(by("m2").race), JSON.stringify({ how: "reserve", counts: { a: 14, b: 9 } }), "out must be a player of the game");
+  });
+  t("cheese: rules, groups, questions refer to real sections; pages 1–2", () => {
+    const ids = new Set(G.rules.map(r => r.id));
+    for (const gr of G.ruleGroups) for (const id of gr.ids) assert.ok(ids.has(id), "group " + id);
+    for (const gr of G.faqGroups) for (const id of gr.refs) assert.ok(ids.has(id), "faq group " + id);
+    for (const f of G.faq) { assert.ok(ids.has(f.ref), "faq ref " + f.ref); if (f.src) assert.ok(BH.FAQ_SRC[f.src], "faq src " + f.src); }
+    assert.ok(G.rules.every(r => r.page === 1 || r.page === 2));
+    const grouped = new Set(G.ruleGroups.flatMap(gr => gr.ids)); for (const id of ids) assert.ok(grouped.has(id), "rule in a group: " + id);
+  });
+  t("cheese: in-game texts are neutral — no «-л» forms", () => {
+    const texts = [...G.rounds.reminder(BH.ctxOf(sess(2))), ...G.cards.map(k => k.does), ...G.scoring.end(), ...BH.setupSteps(sess(2)).map(x => x.text), ...G.faq.map(f => f.q + " " + f.a), ...Object.values(G.scoring.count.out).filter(v => typeof v === "string"), G.scoring.count.allDone, G.scoring.count.done, G.scoring.count.tieDone].join(" ").replace(/[Кк]то [а-яё]+/g, "").replace(/[Рр]езерв кончился/g, "");
+    const bad = texts.match(/[А-Яа-яё]+(?:ил|ыл|ал|ял|ёл|ел|лся|лась)(?![А-Яа-яё])/g) || [];
+    assert.strictEqual(JSON.stringify(bad.filter(w => !/^(стол|ел|пол|угол)$/i.test(w))), JSON.stringify([]));
+  });
+  console.log(`cheese: ${passed - before} passed${process.exitCode ? ", some FAILED" : ""}`);
 }

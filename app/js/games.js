@@ -194,6 +194,17 @@
     if (players.some(id => has(counts, id))) return { how: "coconuts", winners: BH.raceResult(players, counts).top };
     return { how: null, winners: [] };
   };
+  // the count at the end of a race: a player may be out (День сырка: the third mousetrap) and is not counted;
+  // the most wins; equal — the tie rule of the game decides (picked: the player chosen for its question,
+  // "all": the tie stays and they all win, when the game offers it — count.tieAll)
+  BH.raceCounted = (players, out) => players.filter(id => id !== out);
+  BH.raceCountWinners = (g, players, counts, out, picked) => {
+    const C = (g && g.scoring && g.scoring.count) || {}, { best, top } = BH.raceResult(BH.raceCounted(players, out), counts);
+    if (top.length < 2) return { best, top, winners: top, open: false };
+    if (picked === "all" && C.tieAll) return { best, top, winners: top, open: false, all: true };
+    const w = BH.raceTieWinner(C, top, picked);
+    return { best, top, winners: w ? [w] : [], open: !w };
+  };
   BH.raceResult = (players, counts) => {
     const v = id => Math.max(0, Math.round(Number((counts || {})[id])) || 0), best = players.length ? Math.max(...players.map(v)) : 0;
     return { best, top: players.filter(id => v(id) === best) };
