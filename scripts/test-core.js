@@ -1683,13 +1683,14 @@ console.log(`${passed} passed${process.exitCode ? ", some FAILED" : ""}`);
       const r = R(n);
       assert.match(r, /сделай \*одно\*: передвинь фишку или поставь перегородку/);
       assert.match(r, /на \*1\* клетку: вперёд, назад, вправо или влево/); assert.match(r, /не перепрыгивает — \*обходи\*/);
-      assert.match(r, /ровно \*2\* клетки/); assert.match(r, /\*перепрыгни\* её/); assert.match(r, /\*справа\* или \*слева\*/);
+      assert.match(r, /ровно \*2\* перехода/); assert.match(r, /можно \*перепрыгнуть\*/); assert.match(r, /\*справа\* или \*слева\*/);
       assert.match(r, /кончились — ходи только \*фишкой\*/);
     }
     assert.match(R(2), /выход к финишной линии ему \*оставь\*/); assert.match(R(4), /оставь \*каждому\*/);
     // four players: one pawn at most, clockwise — two players see neither line
     assert.match(R(4), /только \*одну\* фишку/); assert.match(R(4), /\*часовой\* стрелке/);
-    assert.ok(!/одну\* фишку|часовой/.test(R(2)));
+    assert.match(R(4), /За соседней фишкой другая.*прыгнуть \*сбоку\*/);
+    assert.ok(!/одну\* фишку|часовой|За соседней фишкой другая/.test(R(2)));
   });
   t("quoridor p.23: the end — the first pawn on any of the 9 cells of the far line wins at once", () => {
     const end = G.scoring.end().join(" ");
@@ -1705,11 +1706,14 @@ console.log(`${passed} passed${process.exitCode ? ", some FAILED" : ""}`);
     assert.ok(G.rules.every(r => r.page === 23));
     const grouped = new Set(G.ruleGroups.flatMap(gr => gr.ids)); for (const id of ids) assert.ok(grouped.has(id), "rule in a group: " + id);
     assert.ok(G.faq.some(f => /край поля/.test(f.q) && f.src === "disputed"), "the board's edge behind a pawn — the book says nothing");
+    const sideJump = G.faq.find(f => /за фишкой соперника другая фишка/.test(f.q));
+    assert.ok(sideJump && sideJump.src !== "disputed");
+    assert.match(sideJump.a, /Клетка приземления должна быть свободной.*без перегородки.*рис[.] 10/);
   });
   t("quoridor: every picture is in the repository and in the offline cache", () => {
     const html = [G.cover, G.rounds.art, ...BH.setupSteps(sess(2)).map(s => s.art), ...BH.setupSteps(sess(4)).map(s => s.art), ...G.rules.map(r => r.art)].join("");
     const srcs = [...new Set([...html.matchAll(/src="([^"]+)"/g)].map(m => m[1]))], sw = fs.readFileSync(path.join(__dirname, "../app/sw.js"), "utf8");
-    assert.ok(srcs.length >= 11);
+    assert.strictEqual(srcs.length, 13);
     for (const src of srcs) { assert.ok(fs.existsSync(path.join(__dirname, "../app", src)), src); assert.ok(sw.includes(`"${src.split("/").pop().replace(".webp", "")}"`), "sw: " + src); }
   });
   t("quoridor: in-game texts are neutral — no «-л» forms", () => {

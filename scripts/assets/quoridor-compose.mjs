@@ -1,161 +1,296 @@
-// Builds the «Коридор» (Quoridor) pictures: our own top-down drawings of the board in the game's materials (a dark wooden
-// board with grooves, light wooden fences, four turned pawns), drawn after the rules' text (the figures 1–10 are not in
-// the published PDF), and the square cover — the front of the box from the publisher's photo (sources/dl-quoridor/web,
-// gigamic.com). Output: app/games/quoridor-art/<name>.webp and app/games/covers/quoridor.webp.
+// Generate the approved Quoridor diagrams and the square crop of the local publisher photo.
 // Run: node scripts/assets/quoridor-compose.mjs [name…]
-import fs from "node:fs";
-import path from "node:path";
-import { root, createCanvas, loadImage, saver, text, tag, UIB, INK } from "./compose-kit.mjs";
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { createCanvas, loadImage, GlobalFonts } from '@napi-rs/canvas';
 
-const save = saver(path.join(root, "app", "games", "quoridor-art"));
-const saveCover = saver(path.join(root, "app", "games", "covers"));
-const W = 768, H = 512;
-const BG = "#F3EBDD", WOOD = "#6B3326", WOOD_D = "#4A2119", CELL = "#7A3D2E", CELL_L = "#8A4A39";
-const FENCE = "#EDBE6E", FENCE_D = "#B9813A", OK = "#2E9B4F", NO = "#D9483B", GOAL = "#F2C230";
-// the four pawns as on the box: aubergine, plum, orange and natural wood
-export const PAWN = { dark: "#4A1E3C", plum: "#9C3D7A", orange: "#E0954E", wood: "#F0DCC6" };
-const shade = (hex, k) => "#" + [1, 3, 5].map(i => Math.max(0, Math.min(255, Math.round(parseInt(hex.slice(i, i + 2), 16) * (1 + k))))).map(v => v.toString(16).padStart(2, "0")).join("");
+const root = fileURLToPath(new URL('../../', import.meta.url));
+GlobalFonts.registerFromPath(`${root}/node_modules/@fontsource/onest/files/onest-cyrillic-600-normal.woff2`, 'Onest');
+GlobalFonts.registerFromPath(`${root}/node_modules/@fontsource/onest/files/onest-latin-600-normal.woff2`, 'Onest');
 
-/* ---------- a board (or a piece of it) seen from above ----------
-   cols × rows cells of size s with grooves g; fences: { c, r, d } — "h": in the groove under row r over cols c and c+1,
-   "v": in the groove right of col c over rows r and r+1; pawns: { c, r, col }; marks: cells to tint { c, r, fill } */
-function board(X, Y, cols, rows, s, g, o = {}) {
-  const cx = c => X + g + c * (s + g) + s / 2, cy = r => Y + g + r * (s + g) + s / 2;
-  const w = cols * s + (cols + 1) * g, h = rows * s + (rows + 1) * g;
-  let out = `<rect x="${X - 6}" y="${Y - 6}" width="${w + 12}" height="${h + 12}" rx="${o.edge === false ? 4 : 14}" fill="${WOOD}" stroke="${WOOD_D}" stroke-width="4"/>`;
-  for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) {
-    const m = (o.marks || []).find(k => k.c === c && k.r === r);
-    out += `<rect x="${cx(c) - s / 2}" y="${cy(r) - s / 2}" width="${s}" height="${s}" rx="${s * 0.12}" fill="${m ? m.fill : CELL}" stroke="${CELL_L}" stroke-width="2"/>`;
-  }
-  for (const f of o.fences || []) out += fence(f.d === "h" ? cx(f.c) - s / 2 : cx(f.c) + s / 2, f.d === "h" ? cy(f.r) + s / 2 : cy(f.r) - s / 2, s, g, f.d, f.bad);
-  for (const p of o.pawns || []) out += pawn(cx(p.c), cy(p.r), s * 0.36, p.col, p.ghost);
-  return { svg: out, cx, cy, w, h };
-}
-// a fence lying in a groove: two cells and the groove between them long
-function fence(x, y, s, g, d, bad) {
-  const L = 2 * s + g, T = g * 1.25, fill = bad ? "#F4C9C4" : FENCE, st = bad ? NO : FENCE_D;
-  return d === "h"
-    ? `<rect x="${x}" y="${y + g / 2 - T / 2}" width="${L}" height="${T}" rx="2.5" fill="${fill}" stroke="${st}" stroke-width="2"/>`
-    : `<rect x="${x + g / 2 - T / 2}" y="${y}" width="${T}" height="${L}" rx="2.5" fill="${fill}" stroke="${st}" stroke-width="2"/>`;
-}
-// a turned pawn from above: the base, the body, the head
-function pawn(x, y, r, col, ghost) {
-  const d = shade(col, -0.35), l = shade(col, 0.4), op = ghost ? ` opacity=".35"` : "";
-  return `<g${op}><circle cx="${x + r * 0.12}" cy="${y + r * 0.16}" r="${r}" fill="#000" opacity=".25"/><circle cx="${x}" cy="${y}" r="${r}" fill="${col}" stroke="${d}" stroke-width="2.5"/>
-    <circle cx="${x}" cy="${y}" r="${r * 0.62}" fill="${col}" stroke="${d}" stroke-width="2"/><circle cx="${x - r * 0.2}" cy="${y - r * 0.2}" r="${r * 0.2}" fill="${l}" opacity=".8"/></g>`;
-}
-// fences waiting beside the board
-const pile = (x, y, n, s, g, d, step) => Array.from({ length: n }, (_, i) => d === "h" ? fence(x, y + i * (step || g * 2), s, g, "h") : fence(x + i * (step || g * 2), y, s, g, "v")).join("");
-const arrow = (x1, y1, x2, y2, col, dash) => {
-  const a = Math.atan2(y2 - y1, x2 - x1), k = 16, ex = x2 - Math.cos(a) * 10, ey = y2 - Math.sin(a) * 10;
-  return `<path d="M${x1} ${y1} L${ex} ${ey}" stroke="${col}" stroke-width="6" stroke-linecap="round"${dash ? ` stroke-dasharray="2 11"` : ""}/>
-    <path d="M${x2} ${y2} L${x2 - k * Math.cos(a - .5)} ${y2 - k * Math.sin(a - .5)} L${x2 - k * Math.cos(a + .5)} ${y2 - k * Math.sin(a + .5)} Z" fill="${col}"/>`;
+const W = 768;
+const H = 512;
+const color = {
+  paper: '#F7F0E6', ink: '#38221E', inkMuted: '#765D50', rust: '#A64833',
+  walnut: '#4C2824', walnutLight: '#693B33', wall: '#F5C67F', wallEdge: '#A36D3C',
+  teal: '#146458', mint: '#AAECCC', mintDark: '#225955', bad: '#A22B37', lightBad: '#FFA3A5',
+  amber: '#E7A957', purple: '#5D3660', plum: '#A44971', ivory: '#F5DDC5',
 };
-// a hop over a pawn: an arc with a head
-function hop(x1, y1, x2, y2, lift, col) {
-  const mx = (x1 + x2) / 2, my = (y1 + y2) / 2, nx = -(y2 - y1), ny = x2 - x1, n = Math.hypot(nx, ny) || 1, qx = mx + nx / n * lift, qy = my + ny / n * lift;
-  const a = Math.atan2(y2 - qy, x2 - qx), k = 16;
-  return `<path d="M${x1} ${y1} Q${qx} ${qy} ${x2 - Math.cos(a) * 9} ${y2 - Math.sin(a) * 9}" fill="none" stroke="${col}" stroke-width="6" stroke-linecap="round"/>
-    <path d="M${x2} ${y2} L${x2 - k * Math.cos(a - .5)} ${y2 - k * Math.sin(a - .5)} L${x2 - k * Math.cos(a + .5)} ${y2 - k * Math.sin(a + .5)} Z" fill="${col}"/>`;
-}
-const check = (x, y, r) => `<circle cx="${x}" cy="${y}" r="${r}" fill="${OK}" stroke="#fff" stroke-width="3"/><path d="M${x - r * .45} ${y} l${r * .3} ${r * .35} l${r * .6} ${-r * .7}" fill="none" stroke="#fff" stroke-width="${r * .28}" stroke-linecap="round" stroke-linejoin="round"/>`;
-const cross = (x, y, r) => `<circle cx="${x}" cy="${y}" r="${r}" fill="${NO}" stroke="#fff" stroke-width="3"/><path d="M${x - r * .4} ${y - r * .4} l${r * .8} ${r * .8} M${x + r * .4} ${y - r * .4} l${-r * .8} ${r * .8}" stroke="#fff" stroke-width="${r * .28}" stroke-linecap="round"/>`;
 
-async function render(name, svg, labels) {
-  const im = await loadImage(Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}"><rect width="${W}" height="${H}" fill="${BG}"/>${svg}</svg>`));
-  const c = createCanvas(W, H), x = c.getContext("2d");
-  x.drawImage(im, 0, 0);
-  for (const l of labels || []) {
-    if (l.tag) tag(x, l.t, l.x, l.y, { size: l.size || 22, bg: l.bg || INK, align: l.align });
-    else text(x, l.t, l.x, l.y, { font: UIB(l.size || 24), color: l.color || INK, align: l.align || "center", maxW: l.maxW });
+function round(ctx, x, y, w, h, r, fill, stroke, lineWidth = 1) {
+  ctx.beginPath();
+  ctx.roundRect(x, y, w, h, r);
+  if (fill) { ctx.fillStyle = fill; ctx.fill(); }
+  if (stroke) { ctx.strokeStyle = stroke; ctx.lineWidth = lineWidth; ctx.stroke(); }
+}
+
+function circle(ctx, x, y, r, fill, stroke, lineWidth = 1) {
+  ctx.beginPath();
+  ctx.arc(x, y, r, 0, Math.PI * 2);
+  if (fill) { ctx.fillStyle = fill; ctx.fill(); }
+  if (stroke) { ctx.strokeStyle = stroke; ctx.lineWidth = lineWidth; ctx.stroke(); }
+}
+
+function text(ctx, value, x, y, size, fill = color.ink, align = 'center') {
+  ctx.font = `600 ${size}px Onest, Arial`;
+  ctx.fillStyle = fill;
+  ctx.textAlign = align;
+  ctx.textBaseline = 'middle';
+  ctx.fillText(value, x, y);
+}
+
+function pawn(ctx, x, y, radius, hue) {
+  circle(ctx, x, y + radius * .16, radius * 1.06, '#26191a9c');
+  circle(ctx, x, y, radius, hue, color.ink, Math.max(1, radius * .12));
+  const glow = ctx.createRadialGradient(x - radius * .27, y - radius * .33, 0, x, y, radius);
+  glow.addColorStop(0, '#FFFFFF65');
+  glow.addColorStop(.57, '#FFFFFF05');
+  glow.addColorStop(1, '#2B121856');
+  circle(ctx, x, y, radius * .94, glow);
+  circle(ctx, x, y, radius * .66, null, '#FFF7E7A6', Math.max(1, radius * .075));
+}
+
+function grid(ctx, x, y, size, n, { marks = [], pawns = [], walls = [] } = {}) {
+  const step = size / n;
+  const gap = step * .095;
+  round(ctx, x - 7, y - 7, size + 14, size + 24, 13, '#6D4A3833');
+  round(ctx, x - 8, y - 8, size + 16, size + 16, 12, color.walnut, '#704137', 2);
+  for (let row = 0; row < n; row++) for (let col = 0; col < n; col++) {
+    const mark = marks.find(([c, r]) => c === col && r === row);
+    const bg = mark ? mark[2] : ((row * 3 + col) % 4 === 0 ? '#75483D' : color.walnutLight);
+    const tileX = x + col * step + gap;
+    const tileY = y + row * step + gap;
+    round(ctx, tileX, tileY, step - 2 * gap, step - 2 * gap, step * .10, bg, '#FFFFFF1F', 1.25);
+    ctx.strokeStyle = '#E9A87817';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(tileX + step * .10, tileY + step * .17);
+    ctx.quadraticCurveTo(tileX + step * .40, tileY + step * .08, tileX + step * .66, tileY + step * .14);
+    ctx.stroke();
   }
-  save(name, c, 82);
+  const position = (c, r) => [x + (c + .5) * step, y + (r + .5) * step];
+  for (const [c, r, direction, bad] of walls) {
+    if (c < 0 || c >= n - 1 || r < 0 || r >= n - 1) throw new Error(`Wall outside grid at ${c},${r}`);
+    const width = step * .22;
+    const length = step * 2 - gap;
+    const startX = x + (direction === 'h' ? c * step + gap / 2 : (c + 1) * step - width / 2);
+    const startY = y + (direction === 'v' ? r * step + gap / 2 : (r + 1) * step - width / 2);
+    const wallW = direction === 'h' ? length : width;
+    const wallH = direction === 'h' ? width : length;
+    round(ctx, startX + 2, startY + 3, wallW, wallH, Math.min(width / 2, 4), '#25140FC0');
+    round(ctx, startX, startY, wallW, wallH, Math.min(width / 2, 4), bad ? color.lightBad : color.wall, bad ? color.bad : color.wallEdge, 1.6);
+  }
+  for (const [c, r, hue] of pawns) pawn(ctx, ...position(c, r), step * .30, hue);
+  return { position, step, x, y, size };
 }
 
-const S = 34, G = 8;   // the full board: 9 × 34 + 10 × 8 = 386
-const jobs = {
-  // fig.1: two players — each pawn in the middle of its first row, 10 fences each in the storage
-  async start2() {
-    const b = board(W / 2 - 193, 63, 9, 9, S, G, { pawns: [{ c: 4, r: 8, col: PAWN.orange }, { c: 4, r: 0, col: PAWN.dark }] });
-    let s = b.svg;
-    s += `<rect x="24" y="40" width="148" height="432" rx="12" fill="${WOOD_D}"/><rect x="${W - 172}" y="40" width="148" height="432" rx="12" fill="${WOOD_D}"/>`;
-    s += pile(40, 70, 10, 26, 7, "v", 12);
-    s += pile(W - 164, 70, 10, 26, 7, "v", 12);
-    await render("start2", s, [{ t: "10", x: 98, y: 300, size: 34, color: "#fff" }, { t: "10", x: W - 98, y: 300, size: 34, color: "#fff" },
-      { t: "перегородок", x: 98, y: 330, size: 22, color: "#F3EBDD" }, { t: "перегородок", x: W - 98, y: 330, size: 22, color: "#F3EBDD" }]);
-  },
-  // four players — a pawn in the middle of each side, 5 fences each
-  async start4() {
-    const X = W / 2 - 193, Y = 63, b = board(X, Y, 9, 9, S, G, { pawns: [{ c: 4, r: 8, col: PAWN.orange }, { c: 4, r: 0, col: PAWN.dark }, { c: 0, r: 4, col: PAWN.plum }, { c: 8, r: 4, col: PAWN.wood }] });
-    let s = b.svg + pile(60, 150, 5, 26, 7, "v") + pile(W - 136, 150, 5, 26, 7, "v");
-    await render("start4", s, [{ t: "по 5", x: 96, y: 290, size: 28 }, { t: "по 5", x: W - 96, y: 290, size: 28 }, { t: "у каждого", x: 96, y: 318, size: 20 }, { t: "у каждого", x: W - 96, y: 318, size: 20 }]);
-  },
-  // fig.2: one cell forwards, backwards, right or left — never diagonally
-  async move() {
-    const s0 = 66, g0 = 14, b = board(W / 2 - 207, 20, 5, 5, s0, g0, { pawns: [{ c: 2, r: 2, col: PAWN.orange }], marks: [[2, 1], [2, 3], [1, 2], [3, 2]].map(([c, r]) => ({ c, r, fill: "#3F7D4E" })) });
-    let s = b.svg, x0 = b.cx(2), y0 = b.cy(2);
-    for (const [c, r] of [[2, 1], [2, 3], [1, 2], [3, 2]]) s += arrow(x0 + (b.cx(c) - x0) * 0.35, y0 + (b.cy(r) - y0) * 0.35, b.cx(c), b.cy(r), "#fff");
-    s += cross(b.cx(3), b.cy(1), 16);
-    await render("move", s, [{ t: "1 клетка: вперёд, назад, вправо, влево", x: W / 2, y: 496, size: 28 }]);
-  },
-  // fig.3: a fence is never jumped — the pawn goes round it
-  async around() {
-    const s0 = 64, g0 = 14, b = board(W / 2 - 211, 30, 5, 5, s0, g0, { fences: [{ c: 1, r: 1, d: "h" }], pawns: [{ c: 2, r: 2, col: PAWN.orange }] });
-    let s = b.svg;
-    s += arrow(b.cx(2), b.cy(2) - 30, b.cx(2), b.cy(1) + 6, NO) + cross(b.cx(2) + 26, b.cy(1) + s0 / 2 + 7, 15);
-    s += arrow(b.cx(2) + 26, b.cy(2), b.cx(3) - 4, b.cy(2), "#fff", true) + arrow(b.cx(3), b.cy(2) - 6, b.cx(3), b.cy(1) + 4, "#fff", true) + arrow(b.cx(3) - 6, b.cy(1), b.cx(2) + 12, b.cy(1), "#fff", true);
-    await render("around", s, [{ t: "Через перегородку нельзя — обходите", x: W / 2, y: 496, size: 28 }]);
-  },
-  // fig.4: a fence closes exactly two cells, in the groove between them
-  async fence() {
-    const s0 = 64, g0 = 14, b = board(W / 2 - 211, 30, 5, 5, s0, g0, { fences: [{ c: 0, r: 1, d: "h" }, { c: 3, r: 1, d: "v" }, { c: 1, r: 3, d: "h" }],
-      marks: [{ c: 0, r: 1, fill: "#A8673F" }, { c: 1, r: 1, fill: "#A8673F" }] });
-    let s = b.svg + check(b.cx(1) + s0 / 2 + 7, b.cy(1) + s0 / 2 + 7, 15) + check(b.cx(3) + s0 / 2 + 7, b.cy(1) - 40, 15) + check(b.cx(2) + s0 / 2 + 7, b.cy(3) + s0 / 2 + 7, 15);
-    await render("fence", s, [{ t: "Перегородка закрывает ровно 2 клетки", x: W / 2, y: 496, size: 28 }]);
-  },
-  // fig.5: a way to the goal line must always stay open
-  async open() {
-    const s0 = 40, g0 = 9, mk = (X, gap) => board(X, 70, 6, 6, s0, g0, { pawns: [{ c: 2, r: 4, col: PAWN.orange }],
-      marks: [0, 1, 2, 3, 4, 5].map(c => ({ c, r: 0, fill: "#8C6A2C" })),
-      fences: [{ c: 0, r: 2, d: "h" }, { c: 2, r: 2, d: "h" }, ...(gap ? [] : [{ c: 4, r: 2, d: "h", bad: true }])] });
-    const L = mk(60, false), R = mk(W - 60 - 6 * s0 - 7 * g0, true);
-    let s = L.svg + R.svg + cross(60 + 160, 36, 20) + check(W - 60 - 160, 36, 20);
-    s += arrow(R.cx(2), R.cy(4) - 22, R.cx(2), R.cy(3) + 4, "#fff", true) + arrow(R.cx(2) + 6, R.cy(3), R.cx(5) + 2, R.cy(3), "#fff", true) + arrow(R.cx(5), R.cy(3) - 6, R.cx(5), R.cy(0) + 6, "#fff", true);
-    await render("open", s, [{ t: "Финишная линия — сверху", x: W / 2, y: 414, size: 24, color: "#5F6B78" }, { t: "Выход к финишу должен остаться", x: W / 2, y: 474, size: 28 }]);
-  },
-  // fig.6: face to face — jump over the pawn and land behind it
-  async jump() {
-    const s0 = 64, g0 = 14, b = board(W / 2 - 211, 30, 5, 5, s0, g0, { pawns: [{ c: 2, r: 3, col: PAWN.orange }, { c: 2, r: 2, col: PAWN.dark }, { c: 2, r: 1, col: PAWN.orange, ghost: true }] });
-    let s = b.svg + hop(b.cx(2) + 22, b.cy(3) - 10, b.cx(2) + 22, b.cy(1) + 10, -60, "#fff");
-    await render("jump", s, [{ t: "Лицом к лицу — прыжок через фишку", x: W / 2, y: 496, size: 28 }]);
-  },
-  // fig.8 and 9: a fence behind the pawn — step to its right or left
-  async side() {
-    const s0 = 64, g0 = 14, b = board(W / 2 - 211, 30, 5, 5, s0, g0, { fences: [{ c: 1, r: 1, d: "h" }], pawns: [{ c: 2, r: 3, col: PAWN.orange }, { c: 2, r: 2, col: PAWN.dark }, { c: 1, r: 2, col: PAWN.orange, ghost: true }, { c: 3, r: 2, col: PAWN.orange, ghost: true }] });
-    let s = b.svg + hop(b.cx(2) - 16, b.cy(3) - 14, b.cx(1) + 8, b.cy(2) + 12, 22, "#fff") + hop(b.cx(2) + 16, b.cy(3) - 14, b.cx(3) - 8, b.cy(2) + 12, -22, "#fff");
-    await render("side", s, [{ t: "За фишкой перегородка — встаньте сбоку", x: W / 2, y: 496, size: 28 }]);
-  },
-  // fig.7: any of the 9 cells of the line opposite the start line wins
-  async goal() {
-    const b = board(W / 2 - 193, 40, 9, 9, S, G, { marks: Array.from({ length: 9 }, (_, c) => ({ c, r: 0, fill: "#B88A2A" })),
-      pawns: [{ c: 6, r: 0, col: PAWN.orange }, { c: 3, r: 5, col: PAWN.dark }], fences: [{ c: 4, r: 1, d: "h" }, { c: 1, r: 3, d: "v" }, { c: 6, r: 4, d: "h" }] });
-    let s = b.svg + `<rect x="${W / 2 - 193 - 6}" y="${b.cy(8) + S / 2 + 4}" width="398" height="8" fill="${PAWN.orange}"/>`;
-    await render("goal", s, [{ t: "Финиш", x: W / 2 + 290, y: 70, tag: true, size: 20, bg: "#B88A2A" }, { t: "Старт", x: W / 2 + 290, y: 432, tag: true, size: 20 },
-      { t: "Любая из 9 клеток напротив — победа", x: W / 2, y: 500, size: 28 }]);
-  },
-  // fig.10: four players — never jump more than one pawn
-  async jump4() {
-    const s0 = 64, g0 = 14, b = board(W / 2 - 211, 30, 5, 5, s0, g0, { pawns: [{ c: 2, r: 4, col: PAWN.orange }, { c: 2, r: 3, col: PAWN.dark }, { c: 2, r: 2, col: PAWN.plum }, { c: 2, r: 1, col: PAWN.orange, ghost: true }] });
-    let s = b.svg + hop(b.cx(2) + 24, b.cy(4) - 8, b.cx(2) + 24, b.cy(1) + 8, -80, NO) + cross(b.cx(2) + 120, b.cy(2) + 6, 18);
-    await render("jump4", s, [{ t: "Вчетвером — только через одну фишку", x: W / 2, y: 496, size: 28 }]);
-  },
-  // the square cover: the front of the box from the publisher's photo
-  async cover() {
-    const im = await loadImage(fs.readFileSync(path.join(root, "sources", "dl-quoridor", "web", "fr-1350.jpg")));
-    const c = createCanvas(512, 512), x = c.getContext("2d"), k = im.width / 800;
-    x.imageSmoothingQuality = "high"; x.drawImage(im, 98 * k, 98 * k, 604 * k, 604 * k, 0, 0, 512, 512);
-    saveCover("quoridor", c, 82);
-  },
+const moveBy = (point, dx, dy) => [point[0] + dx, point[1] + dy];
+
+function arrow(ctx, points, { fill = color.mint, thickness = 6, dash = [], head = 13, quadratic = false } = {}) {
+  ctx.save();
+  ctx.strokeStyle = fill;
+  ctx.fillStyle = fill;
+  ctx.lineWidth = thickness;
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+  ctx.setLineDash(dash);
+  ctx.beginPath();
+  ctx.moveTo(...points[0]);
+  if (quadratic) ctx.quadraticCurveTo(...points[1], ...points[2]);
+  else for (const p of points.slice(1)) ctx.lineTo(...p);
+  ctx.stroke();
+  const [x, y] = points.at(-1);
+  const [px, py] = points.at(-2);
+  const angle = Math.atan2(y - py, x - px);
+  ctx.setLineDash([]);
+  ctx.beginPath();
+  ctx.moveTo(x + Math.cos(angle) * 3, y + Math.sin(angle) * 3);
+  ctx.lineTo(x - Math.cos(angle - .50) * head, y - Math.sin(angle - .50) * head);
+  ctx.lineTo(x - Math.cos(angle + .50) * head, y - Math.sin(angle + .50) * head);
+  ctx.closePath();
+  ctx.fill();
+  ctx.restore();
+}
+
+function crossed(ctx, x, y, radius = 13) {
+  circle(ctx, x, y, radius, color.bad, '#FFE2DC', 2);
+  ctx.strokeStyle = '#FFF1E6';
+  ctx.lineWidth = 3;
+  ctx.lineCap = 'round';
+  const d = radius * .34;
+  ctx.beginPath();
+  ctx.moveTo(x - d, y - d); ctx.lineTo(x + d, y + d);
+  ctx.moveTo(x + d, y - d); ctx.lineTo(x - d, y + d);
+  ctx.stroke();
+}
+
+function target(ctx, position, radius = 11) {
+  circle(ctx, ...position, radius, null, color.mint, 2);
+}
+
+function stock(ctx, cx, y, n, hue) {
+  round(ctx, cx - 67, y, 134, n === 10 ? 124 : 90, 12, '#EFE1D1', '#DDC8B6', 1.5);
+  circle(ctx, cx - 18, y + 26, 10, hue, color.walnut, 1.4);
+  text(ctx, String(n), cx + 15, y + 27, 28);
+  for (let i = 0; i < n; i++) {
+    const x = cx - 47 + (i % 5) * 19;
+    const yy = y + 54 + Math.floor(i / 5) * 36;
+    round(ctx, x, yy, 13, 25, 3, color.wall, color.wallEdge, 1.5);
+  }
+}
+
+function scene(title, caption, drawing) {
+  const canvas = createCanvas(W, H);
+  const ctx = canvas.getContext('2d');
+  ctx.fillStyle = color.paper;
+  ctx.fillRect(0, 0, W, H);
+  round(ctx, 8, 8, W - 16, H - 16, 17, null, '#BDA18C', 2);
+  round(ctx, 42, 37, 6, 30, 3, color.rust);
+  text(ctx, title, 64, 53, 35, color.ink, 'left');
+  drawing(ctx);
+  round(ctx, 33, 448, 702, 38, 7, '#EFE1D1');
+  text(ctx, caption, W / 2, 468, 25);
+  return canvas;
+}
+
+const orange = color.amber;
+const dark = color.purple;
+const valid = color.mintDark;
+const paneX = 215;
+const paneY = 91;
+const paneSize = 338;
+const full = (ctx, options) => grid(ctx, paneX, paneY, paneSize, 9, options);
+function section(ctx, options) {
+  text(ctx, 'Фрагмент поля', 648, 409, 17, color.inkMuted);
+  return grid(ctx, paneX, paneY, paneSize, 5, options);
+}
+
+const scenes = {
+  start2: scene('Старт вдвоём', 'На средних клетках противоположных краёв', ctx => {
+    full(ctx, { pawns: [[4, 0, dark], [4, 8, orange]], marks: [[4, 0, valid], [4, 8, valid]] });
+    stock(ctx, 119, 158, 10, dark);
+    stock(ctx, 649, 158, 10, orange);
+    text(ctx, 'перегородок', 119, 312, 18);
+    text(ctx, 'перегородок', 649, 312, 18);
+  }),
+  start4: scene('Старт вчетвером', 'Фишка в середине своей стороны', ctx => {
+    full(ctx, { pawns: [[4, 0, dark], [4, 8, orange], [0, 4, color.plum], [8, 4, color.ivory]], marks: [[4, 0, valid], [4, 8, valid], [0, 4, valid], [8, 4, valid]] });
+    stock(ctx, 119, 122, 5, dark);
+    stock(ctx, 119, 260, 5, color.plum);
+    stock(ctx, 649, 122, 5, color.ivory);
+    stock(ctx, 649, 260, 5, orange);
+    text(ctx, 'По 5 каждому', 119, 395, 17);
+    text(ctx, 'По 5 каждому', 649, 395, 17);
+  }),
+  turn: scene('Одно действие за ход', 'Перегородки кончились — ходите фишкой', ctx => {
+    text(ctx, 'Фрагменты поля', 384, 89, 17, color.inkMuted);
+    const left = grid(ctx, 80, 115, 242, 4, { pawns: [[1, 2, orange]], marks: [[1, 1, valid]] });
+    arrow(ctx, [moveBy(left.position(1, 2), 0, -24), left.position(1, 1)]);
+    const right = grid(ctx, 446, 115, 242, 4, { walls: [[1, 1, 'h']] });
+    const [x, y] = right.position(1, 1);
+    arrow(ctx, [[x + 30, y - 31], [x + 30, y + 17]]);
+    text(ctx, 'ИЛИ', 384, 235, 24, color.rust);
+    text(ctx, 'Ход фишкой', 201, 394, 25);
+    text(ctx, 'Перегородка', 567, 394, 25);
+  }),
+  fence: scene('Как поставить перегородку', 'Каждая перекрывает два соседних перехода', ctx => {
+    text(ctx, 'Фрагменты поля', 384, 88, 17, color.inkMuted);
+    grid(ctx, 82, 113, 236, 4, { walls: [[1, 1, 'h']], marks: [[1, 1, '#875337'], [2, 1, '#875337'], [1, 2, '#875337'], [2, 2, '#875337']] });
+    grid(ctx, 450, 113, 236, 4, { walls: [[1, 1, 'v']], marks: [[1, 1, '#875337'], [2, 1, '#875337'], [1, 2, '#875337'], [2, 2, '#875337']] });
+    text(ctx, 'Горизонтально', 200, 393, 24);
+    text(ctx, 'Вертикально', 568, 393, 24);
+  }),
+  move: scene('Шаг на одну клетку', 'Вперёд, назад, влево или вправо', ctx => {
+    const endpoints = [[2, 1], [2, 3], [1, 2], [3, 2]];
+    const board = section(ctx, { pawns: [[2, 2, orange]], marks: endpoints.map(([c, r]) => [c, r, valid]) });
+    const origin = board.position(2, 2);
+    for (const [c, r] of endpoints) {
+      const end = board.position(c, r);
+      arrow(ctx, [moveBy(origin, (c - 2) * 25, (r - 2) * 25), end]);
+    }
+    crossed(ctx, ...board.position(3, 1));
+  }),
+  around: scene('Перегородку обходят', 'Пунктир показывает три отдельных хода', ctx => {
+    const route = [[2, 2], [3, 2], [3, 1], [2, 1]];
+    const board = section(ctx, { pawns: [[2, 2, orange]], walls: [[1, 1, 'h']], marks: route.slice(1).map(([c, r]) => [c, r, valid]) });
+    const start = board.position(2, 2);
+    const points = route.slice(1).map(p => board.position(...p));
+    arrow(ctx, [moveBy(start, 25, 0), ...points], { dash: [6, 7] });
+    crossed(ctx, ...moveBy(start, 0, -board.step / 2), 13);
+    for (let i = 0; i < points.length; i++) {
+      const [x, y] = points[i];
+      circle(ctx, x + 17, y + 17, 10, color.teal);
+      text(ctx, String(i + 1), x + 17, y + 17, 14, '#fff');
+    }
+  }),
+  jump: scene('Прыжок через соперника', 'Без перегородки приземлитесь сразу за ним', ctx => {
+    const board = section(ctx, { pawns: [[2, 3, orange], [2, 2, dark]], marks: [[2, 1, valid]] });
+    const start = board.position(2, 3), end = board.position(2, 1);
+    target(ctx, end, 15);
+    arrow(ctx, [moveBy(start, 0, -24), end], { dash: [7, 7] });
+    pawn(ctx, ...board.position(2, 2), board.step * .30, dark);
+  }),
+  side: scene('Перегородка за соперником', 'Выберите клетку слева или справа от него', ctx => {
+    const board = section(ctx, { pawns: [[2, 3, orange], [2, 2, dark]], walls: [[1, 1, 'h']], marks: [[1, 2, valid], [3, 2, valid]] });
+    const start = board.position(2, 3);
+    for (const d of [-1, 1]) {
+      const end = board.position(2 + d, 2);
+      target(ctx, end);
+      arrow(ctx, [moveBy(start, d * 20, -13), moveBy(end, 0, 40), end], { quadratic: true });
+    }
+  }),
+  'side-one': scene('Сбоку мешает перегородка', 'В этом примере можно прыгнуть только вправо', ctx => {
+    const board = section(ctx, { pawns: [[2, 3, orange], [2, 2, dark]], walls: [[1, 1, 'h'], [1, 2, 'v']], marks: [[3, 2, valid]] });
+    const start = board.position(2, 3), end = board.position(3, 2);
+    target(ctx, end);
+    arrow(ctx, [moveBy(start, 20, -13), moveBy(end, 0, 40), end], { quadratic: true });
+    crossed(ctx, ...board.position(1, 2));
+  }),
+  jump4: scene('Вчетвером: через одну фишку', 'Третья фишка сзади — приземляйтесь сбоку', ctx => {
+    const board = section(ctx, { pawns: [[2, 3, orange], [2, 2, dark], [2, 1, color.plum]], marks: [[1, 2, valid], [3, 2, valid]] });
+    for (const d of [-1, 1]) {
+      const end = board.position(2 + d, 2);
+      target(ctx, end);
+      arrow(ctx, [moveBy(board.position(2, 3), d * 20, -13), moveBy(end, 0, 40), end], { quadratic: true });
+    }
+    crossed(ctx, ...board.position(2, 0));
+    text(ctx, 'Двойной прыжок', 116, 131, 18, color.bad);
+  }),
+  open: scene('Путь к финишу остаётся', 'Оставьте проход каждому игроку', ctx => {
+    const marks = Array.from({ length: 9 }, (_, col) => [col, 0, '#386259']);
+    const pawns = [[0, 8, orange], [4, 0, dark]];
+    const left = grid(ctx, 49, 117, 278, 9, { pawns, walls: [[0, 7, 'v'], [0, 6, 'h', true]], marks });
+    const right = grid(ctx, W - 49 - 278, 117, 278, 9, { pawns, walls: [[0, 7, 'v'], [1, 6, 'h']], marks });
+    text(ctx, 'Нельзя', 188, 92, 23, color.bad);
+    text(ctx, 'Можно', 580, 92, 23, color.teal);
+    crossed(ctx, ...left.position(0, 7), 9);
+    arrow(ctx, [moveBy(right.position(0, 8), 0, -13), right.position(0, 0)], { thickness: 4, dash: [6, 6], head: 10 });
+    text(ctx, 'Выхода нет', 188, 422, 20, color.bad);
+    text(ctx, 'Дорожка открыта', 580, 422, 20, color.teal);
+  }),
+  goal: scene('Финиш на противоположной стороне', 'Любая из 9 клеток этого ряда — победа', ctx => {
+    const marks = Array.from({ length: 9 }, (_, c) => [c, 0, '#3F7669']);
+    const board = full(ctx, { marks, pawns: [[6, 0, orange], [2, 6, dark]], walls: [[1, 3, 'h'], [5, 4, 'v'], [4, 7, 'h']] });
+    target(ctx, board.position(4, 8), 8);
+    text(ctx, 'Финиш', 648, 115, 24, color.teal);
+    arrow(ctx, [[602, 115], [563, 115]], { fill: color.teal, thickness: 4, head: 10 });
+    text(ctx, 'Старт', 648, 410, 24, color.inkMuted);
+    arrow(ctx, [[603, 410], [563, 410]], { fill: color.inkMuted, thickness: 4, head: 10 });
+  }),
 };
-const only = process.argv.slice(2);
-for (const [name, job] of Object.entries(jobs)) if (!only.length || only.includes(name)) await job();
+
+const only = new Set(process.argv.slice(2));
+const selected = key => !only.size || only.has(key);
+const artDir = path.join(root, 'app/games/quoridor-art');
+fs.mkdirSync(artDir, { recursive: true });
+for (const [key, canvas] of Object.entries(scenes)) {
+  if (selected(key)) fs.writeFileSync(path.join(artDir, key + '.webp'), canvas.toBuffer('image/webp', 94));
+}
+if (selected('cover')) {
+  const image = await loadImage(path.join(root, 'sources/dl-quoridor/web/fr-1350.jpg'));
+  if (image.width !== 800 || image.height !== 800) throw new Error('Unexpected official cover dimensions');
+  const cover = createCanvas(512, 512);
+  cover.getContext('2d').drawImage(image, 113, 113, 573, 573, 0, 0, 512, 512);
+  fs.writeFileSync(path.join(root, 'app/games/covers/quoridor.webp'), cover.toBuffer('image/webp', 94));
+}
