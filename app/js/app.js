@@ -1699,10 +1699,11 @@
         <div class="kpi"><b>${fin.reduce((a, s) => a + s.rounds.length, 0)}</b><span>раундов</span></div>
       </div>`;
     const tabs = [
-      { id: "players", label: "Игроки", n: ppl.length, html: `<section class="panel"><div class="scroll-x"><table class="tbl">
-        <thead><tr><th>Игрок</th><th>Партий</th><th>Побед</th><th>% побед</th>${statsGame ? "<th>Лучший счёт</th>" : ""}</tr></thead>
-        <tbody>${ppl.map(x => `<tr><td><span class="row">${BH.avatar(x.p, "sm")}${esc(x.p.name)}</span></td><td>${x.played}</td><td>${x.wins}</td><td>${Math.round(100 * x.rate)}%<span class="meter"><i style="width:${Math.round(100 * x.rate)}%"></i></span></td>${statsGame ? `<td>${x.best}</td>` : ""}</tr>`).join("")}</tbody></table></div></section>` },
-      { id: "games", label: "Игры", n: byGame.length, html: `<section class="panel"><table class="tbl"><thead><tr><th>Игра</th><th>Партий</th><th>Последняя</th></tr></thead>
+      // the charts first, then the same numbers as a table; who beats whom last
+      { id: "players", label: "Игроки", n: ppl.length, html: `${BH.charts.ratesHTML(ppl)}${BH.charts.raceHTML(fin, ppl)}<section class="panel ch-table"><h2>Партии и победы</h2><div class="scroll-x"><table class="tbl">
+        <thead><tr><th>Игрок</th><th>Партий</th><th>Побед</th>${statsGame ? "<th>Лучший счёт</th>" : ""}</tr></thead>
+        <tbody>${ppl.map(x => `<tr><td><span class="row">${BH.avatar(x.p, "sm")}${esc(x.p.name)}</span></td><td>${x.played}</td><td>${x.wins}</td>${statsGame ? `<td>${x.best}</td>` : ""}</tr>`).join("")}</tbody></table></div></section>${BH.charts.headToHeadHTML(fin, ppl)}` },
+      { id: "games", label: "Игры", n: byGame.length, html: `${BH.charts.monthsHTML(fin)}<section class="panel"><table class="tbl"><thead><tr><th>Игра</th><th>Партий</th><th>Последняя</th></tr></thead>
         <tbody>${byGame.map(x => `<tr><td>${esc(x.g.name)}</td><td>${x.n}</td><td>${x.last ? BH.fmtDate(x.last) : ""}</td></tr>`).join("")}</tbody></table></section>` },
       { id: "places", label: "Места", n: byPlace.length, html: `<section class="panel"><table class="tbl"><thead><tr><th>Место</th><th>Партий</th></tr></thead>
         <tbody>${byPlace.map(x => `<tr><td>${esc(x.p.name)}</td><td>${x.n}</td></tr>`).join("")}</tbody></table></section>` },
@@ -3276,7 +3277,7 @@
   window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", applyTheme);
 
   /* ---------- start ---------- */
-  BH.version = "0.41.0";
+  BH.version = "0.42.0";
   applyTheme();
   // reloaded while a sheet was open: step off its history entry; a fresh start has nothing before it
   if (history.state && history.state.ov) history.back();

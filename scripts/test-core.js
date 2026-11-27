@@ -9,7 +9,7 @@ const ctx = {
 };
 ctx.window = ctx;
 vm.createContext(ctx);
-for (const f of ["js/util.js", "js/store.js", "js/games.js", "js/chances.js", "js/art.js", "games/flip7.js", "games/flip7v.js", "games/faraway.js", "games/thegang.js", "games/crokinole.js", "games/coconuts.js", "games/goldfever.js", "games/zoo.js", "games/toybattle.js", "games/dobble.js", "games/ribbit.js", "games/jackal.js", "games/bigwalk.js", "games/cheese.js", "games/dragons.js"])
+for (const f of ["js/util.js", "js/store.js", "js/games.js", "js/chances.js", "js/charts.js", "js/art.js", "games/flip7.js", "games/flip7v.js", "games/faraway.js", "games/thegang.js", "games/crokinole.js", "games/coconuts.js", "games/goldfever.js", "games/zoo.js", "games/toybattle.js", "games/dobble.js", "games/ribbit.js", "games/jackal.js", "games/bigwalk.js", "games/cheese.js", "games/dragons.js"])
   vm.runInContext(fs.readFileSync(path.join(__dirname, "..", "app", f), "utf8"), ctx, { filename: f });
 const BH = ctx.BH, g = BH.game("flip7");
 let passed = 0;
@@ -1656,4 +1656,48 @@ console.log(`${passed} passed${process.exitCode ? ", some FAILED" : ""}`);
     assert.strictEqual(JSON.stringify(bad.filter(w => !/^(стол|ел|пол|угол|пьедестал)$/i.test(w))), JSON.stringify([]));
   });
   console.log(`dragons: ${passed - before} passed${process.exitCode ? ", some FAILED" : ""}`);
+}
+{
+  // the statistics charts (js/charts.js): the numbers behind the pictures
+  const CH = BH.charts, before = passed, day = (y, m, d) => new Date(y, m - 1, d, 18).getTime();
+  const play = (id, when, players, winners) => ({ id, gameId: "flip7", created: when, finishedAt: when + 3600000, players, winners, status: "finished", rounds: [] });
+  const ss = [play("s3", day(2026, 3, 5), ["a", "b", "c"], ["c"]), play("s1", day(2026, 1, 10), ["a", "b"], ["a"]), play("s2", day(2026, 1, 20), ["a", "b", "c"], ["a", "b"]),
+    play("s4", day(2026, 3, 9), ["a", "b"], ["b"])];
+  t("charts: the race counts the wins after every game, in the order of the dates", () => {
+    const r = CH.race(ss, ["a", "b", "c"]);
+    assert.deepStrictEqual([...r.games.map(s => s.id)], ["s1", "s2", "s3", "s4"]);
+    assert.deepStrictEqual([...r.series.a], [0, 1, 2, 2, 2]); assert.deepStrictEqual([...r.series.b], [0, 0, 1, 1, 2]); assert.deepStrictEqual([...r.series.c], [0, 0, 0, 1, 1]);
+  });
+  t("charts: the games per month — from the first month to now, empty months kept, at most 12", () => {
+    const ms = CH.months(ss, day(2026, 4, 2));
+    assert.deepStrictEqual([...ms.map(m => `${m.y}-${m.m + 1}:${m.n}`)], ["2026-1:2", "2026-2:0", "2026-3:2", "2026-4:0"]);
+    const long = CH.months([play("x", day(2024, 5, 1), ["a"], ["a"])], day(2026, 4, 2));
+    assert.strictEqual(long.length, 12); assert.strictEqual(long[0].y * 12 + long[0].m, 2025 * 12 + 4, "the last 12 months up to now");
+    assert.deepStrictEqual([...CH.months([], day(2026, 4, 2))], []);
+  });
+  t("charts: who beats whom — only the games both played, a shared win counts for neither", () => {
+    const m = CH.headToHead(ss, ["a", "b", "c"]);
+    assert.deepStrictEqual({ ...m.a.b }, { shared: 4, won: 1, lost: 1 }, "s1 a, s4 b; s2 both won, s3 neither");
+    assert.deepStrictEqual({ ...m.c.a }, { shared: 2, won: 1, lost: 1 });
+    assert.deepStrictEqual({ ...m.b.c }, { shared: 2, won: 1, lost: 1 });
+    const n = CH.headToHead([play("z", day(2026, 1, 1), ["a", "d"], ["a"])], ["a", "b", "d"]);
+    assert.deepStrictEqual({ ...n.a.b }, { shared: 0, won: 0, lost: 0 }, "never played together");
+    assert.deepStrictEqual({ ...n.d.a }, { shared: 1, won: 0, lost: 1 });
+  });
+  t("charts: the pictures — few games faded, at most six lines, nothing to draw with one player", () => {
+    const P = (id, name, played, wins) => ({ p: { id, name, color: "#2F74D0" }, played, wins, rate: played ? wins / played : 0 });
+    const html = CH.ratesHTML([P("a", "Аня", 12, 7), P("b", "Боря", 1, 1)]);
+    assert.ok(html.indexOf("Аня") < html.indexOf("Боря"), "a sure rate before a faded one, whatever the per cent");
+    assert.match(html, /ch-rate faint/); assert.match(html, /меньше 5 партий/); assert.match(html, /7 из 12/);
+    assert.strictEqual(CH.ratesHTML([]), "");
+    assert.strictEqual(CH.headToHeadHTML(ss, [P("a", "Аня", 4, 2)]), "", "one player — no table");
+    assert.ok(!CH.ratesHTML([P("a", "<b>x", 6, 1)]).includes("<b>x"), "names are escaped");
+  });
+  t("charts: a cooperative game (The Gang) is left out of the race and of who beats whom", () => {
+    const gang = { ...play("g1", day(2026, 2, 1), ["a", "b"], ["a", "b"]), gameId: "thegang" };
+    assert.deepStrictEqual([...CH.race([...ss, gang], ["a"]).series.a], [0, 1, 2, 2, 2]);
+    assert.deepStrictEqual({ ...CH.headToHead([gang], ["a", "b"]).a.b }, { shared: 0, won: 0, lost: 0 });
+    assert.strictEqual(CH.months([gang], day(2026, 2, 5)).length, 1, "but it is a game played that month");
+  });
+  console.log(`charts: ${passed - before} passed${process.exitCode ? ", some FAILED" : ""}`);
 }
