@@ -1699,5 +1699,43 @@ console.log(`${passed} passed${process.exitCode ? ", some FAILED" : ""}`);
     assert.deepStrictEqual({ ...CH.headToHead([gang], ["a", "b"]).a.b }, { shared: 0, won: 0, lost: 0 });
     assert.strictEqual(CH.months([gang], day(2026, 2, 5)).length, 1, "but it is a game played that month");
   });
+  t("stats: the period — all, the last 30 days, a calendar year", () => {
+    const now = day(2026, 3, 20);
+    assert.ok(CH.inPeriod(ss[0], "all", now) && CH.inPeriod(ss[0], "y2026", now) && !CH.inPeriod(ss[0], "y2025", now));
+    assert.ok(CH.inPeriod(ss[3], "30d", now) && !CH.inPeriod(ss[1], "30d", now), "9 March is within 30 days of 20 March, 10 January is not");
+  });
+  t("stats: the highlights — the most wins, the game played most, the best run, the last game, the evenings", () => {
+    const h = CH.highlights(ss);
+    assert.deepStrictEqual({ v: h.leader.value, ids: [...h.leader.ids].sort() }, { v: 2, ids: ["a", "b"] }, "a: s1, s2; b: s2, s4");
+    assert.strictEqual(h.favorite.value, 4); assert.deepStrictEqual([...h.favorite.ids], ["flip7"]);
+    assert.deepStrictEqual({ v: h.streak.value, ids: [...h.streak.ids] }, { v: 2, ids: ["a"] }, "a won s1 and s2 in a row; b lost s1");
+    assert.strictEqual(h.last.id, "s4"); assert.strictEqual(h.evenings, 4); assert.strictEqual(h.time, 0, "no start time recorded — no time at the table");
+    assert.strictEqual(CH.highlights([{ ...ss[0], startedAt: ss[0].created }]).time, 3600000);
+    assert.strictEqual(CH.highlights([]).last, null);
+  });
+  t("stats: the rating — by wins, or by rate with few games last", () => {
+    const P = (id, played, wins) => ({ p: { id, name: id.toUpperCase(), color: "#2F74D0" }, played, wins, rate: wins / played, best: null });
+    const rows = [P("a", 10, 6), P("b", 2, 2), P("c", 10, 3)], order = html => [...html.matchAll(/#\/players\/(\w)/g)].map(m => m[1]).join("");
+    assert.strictEqual(order(CH.ratesHTML(rows, "wins")), "acb");
+    assert.strictEqual(order(CH.ratesHTML(rows, "rate")), "acb", "b has 100% but only 2 games — last");
+    assert.match(CH.ratesHTML(rows, "rate"), /aria-pressed="true">% побед/);
+    // equal wins share the place, and both get the gold of the first
+    const tied = CH.ratesHTML([P("a", 10, 5), P("b", 8, 5), P("c", 9, 1)], "wins"), ranks = [...tied.matchAll(/ch-rank" aria-hidden="true">(\d)/g)].map(m => m[1]).join("");
+    assert.strictEqual(ranks, "113"); assert.strictEqual((tied.match(/ch-rate first/g) || []).length, 2);
+  });
+  t("stats: a cooperative game counts for the games and the time, not for the leader and the run", () => {
+    const gang = (id, d, won) => ({ ...play(id, day(2026, 2, d), ["a", "b"], won ? ["a", "b"] : []), gameId: "thegang" });
+    const h = CH.highlights([gang("g1", 1, true), gang("g2", 2, true), gang("g3", 3, false)]);
+    assert.strictEqual(h.leader.value, 0); assert.strictEqual(h.streak.value, 0); assert.strictEqual(h.favorite.value, 3); assert.strictEqual(h.evenings, 3);
+    assert.match(CH.highlightsHTML(h, { icons: { trophy: "", clock: "", cards: "", streak: "", cal: "" } }), /команда проиграла/);
+  });
+  t("stats: one game chosen — no favourite tile; a past year — its own months", () => {
+    const h = CH.highlights(ss), ic = { trophy: "", clock: "", cards: "", streak: "", cal: "" };
+    assert.match(CH.highlightsHTML(h, { icons: ic }), /Любимая игра/);
+    assert.doesNotMatch(CH.highlightsHTML(h, { icons: ic, oneGame: true }), /Любим/);
+    assert.match(CH.highlightsHTML(h, { icons: ic, oneGame: true, avg: "40 мин", timed: 3 }), /Средняя партия.*по 3 партиям/s);
+    const ms = CH.months(ss, new Date(2026, 11, 31, 12).getTime());
+    assert.strictEqual(ms.length, 12); assert.strictEqual(ms[0].m, 0); assert.strictEqual(ms[11].m, 11);
+  });
   console.log(`charts: ${passed - before} passed${process.exitCode ? ", some FAILED" : ""}`);
 }

@@ -50,19 +50,92 @@
   const wins = n => n + " " + BH.plural(n, "победа", "победы", "побед");
   const nice = max => { if (max <= 4) return Math.max(1, max); const step = max <= 10 ? 2 : max <= 25 ? 5 : max <= 50 ? 10 : Math.ceil(max / 50) * 10; return Math.ceil(max / step) * step; };
 
-  // the win rate: one bar per player in their colour, the per cent at the bar's end, «7 из 12» under the name
-  C.ratesHTML = rows => {
+  // the rating of the players: a row per player, linked to their card — the place, the name, «27 из 40», a bar of the
+  // win rate in their colour, the per cent. In the order of wins or of the rate; by rate, the players with few games come
+  // last and faded (1 of 1 is not yet 100%). best: the best score in the game filtered, when the game keeps one
+  C.SORTS = { wins: "Победы", rate: "% побед" };
+  C.ratesHTML = (rows, sort, best) => {
     if (!rows.length) return "";
-    const sure = rows.filter(r => r.played >= C.MIN_GAMES), few = rows.filter(r => r.played < C.MIN_GAMES);
-    const order = [...sure.sort((a, b) => b.rate - a.rate || b.wins - a.wins), ...few.sort((a, b) => b.rate - a.rate || b.played - a.played)];
-    const line = r => { const pct = Math.round(100 * r.rate), faint = r.played < C.MIN_GAMES;
-      return `<div class="ch-rate${faint ? " faint" : ""}" role="listitem" aria-label="${esc(r.p.name)}: ${pct}% побед, ${r.wins} ${ofGames(r.played)}${faint ? ", мало партий" : ""}">
-        <span class="ch-rate-n"><b>${esc(r.p.name)}</b><small>${r.wins} из ${r.played}</small></span>
+    const few = r => r.played < C.MIN_GAMES, byRate = sort === "rate";
+    const order = rows.slice().sort((a, b) => (byRate ? few(a) - few(b) || b.rate - a.rate : 0) || b.wins - a.wins || b.rate - a.rate || b.played - a.played);
+    // equal ones share the place: by wins — the same wins, by rate — the same per cent and wins
+    const key = r => (byRate ? (few(r) ? "f" : "") + Math.round(100 * r.rate) + ":" + r.wins : String(r.wins));
+    const places = order.map((r, k) => k);
+    for (let k = 1; k < order.length; k++) if (key(order[k]) === key(order[k - 1])) places[k] = places[k - 1];
+    const line = (r, k) => { const pct = Math.round(100 * r.rate), faint = few(r), sc = best && r.best !== null && r.best !== undefined ? r.best : null;
+      return `<a class="ch-rate${faint ? " faint" : ""}${places[k] === 0 && r.wins ? " first" : ""}" href="#/players/${esc(r.p.id)}" aria-label="${places[k] + 1} место, ${esc(r.p.name)}: ${pct}% побед, ${wins(r.wins)} ${ofGames(r.played)}${faint ? ", мало партий" : ""}${sc !== null ? ", лучший счёт " + esc(sc) : ""}">
+        <span class="ch-rank" aria-hidden="true">${places[k] + 1}</span>
+        <span class="ch-rate-n"><b>${esc(r.p.name)}</b><small>${r.wins} из ${r.played}${sc !== null ? `, лучший счёт ${esc(sc)}` : ""}</small></span>
         <span class="ch-rate-bar" aria-hidden="true"><i style="width:${Math.max(pct, r.wins ? 2 : 0)}%;background:${esc(r.p.color)}"></i></span>
-        <span class="ch-rate-pct" aria-hidden="true">${pct}%</span></div>`; };
-    return `<section class="panel ch"><h2>Процент побед</h2>
-      <div class="ch-rates" role="list">${order.map(line).join("")}</div>
-      ${few.length ? `<p class="small muted ch-note">Бледные полоски — у игроков меньше ${C.MIN_GAMES} партий, их процент пока случаен.</p>` : ""}</section>`;
+        <span class="ch-rate-pct" aria-hidden="true">${pct}%</span></a>`; };
+    const seg = `<div class="seg ch-sort" role="group" aria-label="Порядок">${Object.entries(C.SORTS).map(([k, v]) => `<button type="button" data-act="stats-sort" data-v="${k}" aria-pressed="${(byRate ? "rate" : "wins") === k}">${v}</button>`).join("")}</div>`;
+    return `<section class="panel ch"><div class="sec-h"><h2>Рейтинг</h2>${seg}</div>
+      <div class="ch-rates">${order.map(line).join("")}</div>
+      ${rows.some(few) ? `<p class="small muted ch-note">Бледные строки — у игроков меньше ${C.MIN_GAMES} партий, их процент пока случаен.</p>` : ""}</section>`;
+  };
+
+  /* ---------- the overview ---------- */
+  // the period of the statistics: all the time, the last 30 days, or a calendar year ("y2026")
+  C.inPeriod = (s, period, now) => {
+    const t = BH.sessionDate(s);
+    if (!period || period === "all") return true;
+    if (period === "30d") return !!t && t > (now || Date.now()) - 30 * 86400000;
+    const y = /^y(\d{4})$/.exec(period); return y ? !!t && new Date(t).getFullYear() === +y[1] : true;
+  };
+  // the highlights of a set of games: the most wins, the game played most, the longest run of wins, the last game,
+  // the evenings (days with a game) and the time at the table. A cooperative game (the team wins or loses together)
+  // counts for the games and the time, not for the leader and the run: it says nothing about who wins
+  C.highlights = sessions => {
+    const list = byDate(sessions), won = new Map(), plays = new Map(), runs = new Map(), best = new Map(), days = new Set();
+    let time = 0;
+    for (const s of list) {
+      plays.set(s.gameId, (plays.get(s.gameId) || 0) + 1);
+      const t = BH.sessionDate(s); if (t) days.add(new Date(t).setHours(0, 0, 0, 0));
+      if (s.startedAt && s.finishedAt > s.startedAt) time += s.finishedAt - s.startedAt;
+      if (BH.isCoop(BH.game(s.gameId))) continue;
+      for (const id of s.players) {
+        if (s.winners.includes(id)) { won.set(id, (won.get(id) || 0) + 1); const r = (runs.get(id) || 0) + 1; runs.set(id, r); best.set(id, Math.max(r, best.get(id) || 0)); }
+        else runs.set(id, 0);
+      }
+    }
+    const lead = m => { let value = 0, ids = []; for (const [id, n] of m) { if (n > value) { value = n; ids = []; } if (n && n === value) ids.push(id); } return { value, ids }; };
+    return { leader: lead(won), favorite: lead(plays), streak: lead(best), last: list[list.length - 1] || null, evenings: days.size, time };
+  };
+  // a list of the names: «Аня», «Аня и Боря», «Аня, Боря и Ева»
+  const names = ids => { const n = ids.map(name); return n.length > 1 ? n.slice(0, -1).join(", ") + " и " + n[n.length - 1] : n.join(""); };
+  // the highlight tiles: what the family asks first — who wins, what we play, who is on a run, what the last game was
+  C.highlightsHTML = (h, opts) => {
+    const tile = (kind, icon, label, body, sub, href) => `<${href ? `a href="${href}"` : "div"} class="st-hi ${kind}"><span class="st-hi-top"><span class="st-hi-ic">${icon}</span><span class="st-hi-l">${label}</span></span><b class="st-hi-v">${body}</b><span class="st-hi-s">${sub}</span></${href ? "a" : "div"}>`;
+    const one = ids => (ids.length === 1 ? ids[0] : null), IC = opts.icons, out = [];
+    if (h.leader.value) { const p = one(h.leader.ids) && BH.player(h.leader.ids[0]);
+      out.push(tile("win", IC.trophy, h.leader.ids.length > 1 ? "Лидеры" : "Лидер", `${p ? BH.avatar(p, "sm") : ""}<span>${esc(names(h.leader.ids))}</span>`, wins(h.leader.value) + (h.leader.ids.length > 1 ? " у каждого" : ""), p ? "#/players/" + esc(p.id) : "")); }
+    if (opts.avg) out.push(tile("acc", IC.clock, "Средняя партия", esc(opts.avg), "по " + opts.timed + " " + BH.plural(opts.timed, "партии", "партиям", "партиям") + ", где записано время", ""));
+    // one game chosen: no «favourite» — it is that game
+    else if (h.favorite.value && !opts.oneGame) { const g = one(h.favorite.ids) && BH.game(h.favorite.ids[0]), gn = id => (BH.game(id) || { name: id }).name;
+      const list = h.favorite.ids.map(gn), gl = list.length > 1 ? list.slice(0, -1).join(", ") + " и " + list[list.length - 1] : list.join("");
+      out.push(tile("acc", IC.cards, h.favorite.ids.length > 1 ? "Любимые игры" : "Любимая игра", `<span>${esc(gl)}</span>`, games(h.favorite.value) + (h.favorite.ids.length > 1 ? " у каждой" : ""), g ? "#/games/" + esc(g.id) : "")); }
+    if (h.streak.value > 1) { const p = one(h.streak.ids) && BH.player(h.streak.ids[0]);
+      out.push(tile("good", IC.streak, "Лучшая серия", `${p ? BH.avatar(p, "sm") : ""}<span>${esc(names(h.streak.ids))}</span>`, wins(h.streak.value) + " подряд" + (h.streak.ids.length > 1 ? " у каждого" : ""), p ? "#/players/" + esc(p.id) : "")); }
+    if (h.last) { const s = h.last, g = BH.game(s.gameId), w = s.winners.filter(id => BH.player(id)), coop = BH.isCoop(g);
+      const res = coop ? (s.winners.length ? ", команда победила" : ", команда проиграла") : w.length ? ", победа: " + esc(names(w)) : "";
+      out.push(tile("plain", IC.cal, "Последняя партия", `<span>${esc(g ? g.name : "")}</span>`, esc(BH.fmtDate(BH.sessionDate(s))) + res, "#/s/" + esc(s.id))); }
+    return out.length ? `<div class="st-his">${out.join("")}</div>` : "";
+  };
+  // where the family plays: a bar per place, only when there is more than one
+  C.placesHTML = rows => {
+    if (rows.length < 2) return "";
+    const max = Math.max(...rows.map(r => r.n));
+    return `<section class="panel ch"><h2>Где играем</h2><div class="ch-rates" role="list">${rows.slice().sort((a, b) => b.n - a.n).map(r => `<div class="ch-bar-row" role="listitem"><span class="ch-rate-n"><b>${esc(r.name)}</b></span>
+      <span class="ch-rate-bar" aria-hidden="true"><i style="width:${(100 * r.n) / max}%;background:var(--accent)"></i></span><span class="ch-rate-pct" aria-label="${games(r.n)}">${r.n}</span></div>`).join("")}</div></section>`;
+  };
+  // the games played: cover, name, the last game, a bar of the number of games; a row opens the game
+  C.gamesHTML = (rows, cover) => {
+    if (!rows.length) return "";
+    const max = Math.max(...rows.map(r => r.n));
+    return `<section class="panel ch"><h2>Во что играем</h2><div class="st-games">${rows.slice().sort((a, b) => b.n - a.n || b.last - a.last).map(r => `<a class="st-game" href="#/games/${esc(r.g.id)}" aria-label="${esc(r.g.name)}: ${games(r.n)}${r.last ? ", последняя партия " + esc(BH.fmtDate(r.last)) : ""}">
+      ${cover(r.g)}<span class="st-game-t"><b>${esc(r.g.name)}</b><small>${r.last ? "последняя партия " + esc(BH.fmtDate(r.last)) : ""}</small>
+      <span class="ch-rate-bar" aria-hidden="true"><i style="width:${Math.max(3, (100 * r.n) / max)}%;background:var(--accent)"></i></span></span>
+      <span class="st-game-n" aria-hidden="true">${r.n}</span></a>`).join("")}</div></section>`;
   };
 
   // the race of wins: a step line per player over the games in the order played; tap for the numbers after a game

@@ -248,6 +248,7 @@
     clock: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></svg>',
     user: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="3.5"/><path d="M5 20a7 7 0 0 1 14 0"/></svg>',
     building: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20V6l8-3v17M12 9l8 3v8M3 20h18M7.5 9h1M7.5 13h1M7.5 16.5h1M15.5 15h1"/></svg>',
+    streak: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3c.8 3.6 5 5.6 5 10.2a5 5 0 0 1-10 0c0-2.3 1-3.9 2.6-5.1.2 1.8.9 2.8 2 3.2C11.1 8.6 11.3 5.9 12 3z"/></svg>',
     bolt: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M13 3L5 13.5h6L10 21l8-10.5h-6z"/></svg>',
     puzzle: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 8h3.5a2 2 0 1 1 4 0H16v3.5a2 2 0 1 1 0 4V19H5z"/></svg>',
     cake: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h16M5.5 20v-7h13v7M5.5 15.5c1.6 1.2 3 1.2 4.3 0s3-1.2 4.4 0 2.9 1.2 4.3 0M12 13v-3M12 6.5c-.9-.9-.9-2 0-3 .9 1 .9 2.1 0 3z"/></svg>',
@@ -1654,8 +1655,7 @@
 
   /* ---------- stats ---------- */
   let statsGame = "";
-  // the statistics: the screen of tabs — the game filter and the totals on top, then the players, the games, the places
-  let statsTab = "players";
+  let statsTab = "overview";   // the tab on screen; the overview first
   let reviewYear = new Date().getFullYear();
   function yearReviewHTML() {
     const sessions = finishedSessions(), current = new Date().getFullYear();
@@ -1684,41 +1684,54 @@
         ${fact("Самый долгий вечер", st.longest.value ? st.longest.ids.map(BH.fmtDate).join(", ") : "Время не записано", st.longest.value ? BH.fmtDuration(st.longest.value) + " по записям партий" : "")}
       </section>`;
   }
+  // the statistics (docs/ui.md «Статистика»): one row of filters — the game and the period — and three totals on top,
+  // then the tabs: the overview (the highlights, the games per month, the places), the players (the rating, the race,
+  // who beats whom), the games (what we play), the year in review
+  let statsPeriod = "all", statsSort = "wins";
   function viewStats() {
-    const fin = S().sessions.filter(s => s.status === "finished" && (!statsGame || s.gameId === statsGame));
-    const hours = fin.reduce((a, s) => a + (s.finishedAt && s.startedAt ? s.finishedAt - s.startedAt : 0), 0);
-    const games = new Set(fin.map(s => s.gameId));
+    const all = S().sessions.filter(s => s.status === "finished"), now = Date.now(), current = new Date(now).getFullYear();
+    const years = [...new Set([current, ...all.map(BH.sessionDate).filter(Boolean).map(t => new Date(t).getFullYear())])].sort((a, b) => b - a);
+    if (statsPeriod !== "all" && statsPeriod !== "30d" && !years.some(y => "y" + y === statsPeriod)) statsPeriod = "all";
+    const fin = all.filter(s => (!statsGame || s.gameId === statsGame) && BH.charts.inPeriod(s, statsPeriod, now));
+    const h = BH.charts.highlights(fin), g1 = statsGame && BH.game(statsGame);
     const ppl = S().players.map(p => {
       const mine = fin.filter(s => s.players.includes(p.id));
       const wins = mine.filter(s => s.winners.includes(p.id)).length;
-      const g0 = statsGame ? BH.playerStats(p.id, fin).games[0] : null, best = g0 && g0.best !== null ? g0.best : "—";   // one game: lowest wins where it should
+      const g0 = statsGame ? BH.playerStats(p.id, fin).games[0] : null, best = g0 && g0.best !== null ? g0.best : null;   // one game: lowest wins where it should
       return { p, played: mine.length, wins, rate: mine.length ? wins / mine.length : 0, best };
-    }).filter(x => x.played).sort((a, b) => b.wins - a.wins || b.rate - a.rate || b.played - a.played);
-    const byGame = BH.games.map(g => ({ g, n: fin.filter(s => s.gameId === g.id).length, last: fin.filter(s => s.gameId === g.id).reduce((m, s) => Math.max(m, s.finishedAt || 0), 0) })).filter(x => x.n);
-    const byPlace = [...S().places, { id: null, name: "Не указано" }].map(p => ({ p, n: fin.filter(s => (s.placeId || null) === p.id).length })).filter(x => x.n);
-    const opts = `<option value="">Все игры</option>${BH.games.map(g => `<option value="${g.id}" ${g.id === statsGame ? "selected" : ""}>${esc(g.name)}</option>`).join("")}`;
-    const top = `<label class="small muted pc-sort">Игра<select class="input" data-act="stats-game" aria-label="Игра">${opts}</select></label>
-      <div class="kpis">
+    }).filter(x => x.played);
+    const byGame = BH.games.map(g => { const gs = fin.filter(s => s.gameId === g.id); return { g, n: gs.length, last: gs.reduce((m, s) => Math.max(m, BH.sessionDate(s) || 0), 0) }; }).filter(x => x.n);
+    const byPlace = [...S().places, { id: null, name: "Место не указано" }].map(p => ({ name: p.name, n: fin.filter(s => (s.placeId || null) === p.id).length })).filter(x => x.n);
+    // the filters: what to count (a game or all of them) and over which time
+    const gOpts = `<option value="">Все игры</option>${BH.games.map(g => `<option value="${g.id}" ${g.id === statsGame ? "selected" : ""}>${esc(g.name)}</option>`).join("")}`;
+    const pOpts = [["all", "Всё время"], ["30d", "Последние 30 дней"], ...years.map(y => ["y" + y, y + " год"])].map(([v, t]) => `<option value="${v}" ${v === statsPeriod ? "selected" : ""}>${t}</option>`).join("");
+    const filters = `<div class="st-filters"><label class="st-filter"><span>Игра</span><select class="input" data-act="stats-game">${gOpts}</select></label>
+      <label class="st-filter"><span>Период</span><select class="input" data-act="stats-period">${pOpts}</select></label></div>`;
+    const hours = h.time / 3600000, timed = fin.filter(s => s.startedAt && s.finishedAt > s.startedAt).length;
+    const totals = `<div class="kpis k3 st-kpis">
         <div class="kpi"><b>${fin.length}</b><span>${BH.plural(fin.length, "партия", "партии", "партий")}</span></div>
-        <div class="kpi"><b>${games.size}</b><span>${BH.plural(games.size, "игра", "игры", "игр")}</span></div>
-        <div class="kpi"><b>${(hours / 3600000).toFixed(1).replace(".", ",")} ч</b><span>за столом</span></div>
-        <div class="kpi"><b>${fin.reduce((a, s) => a + s.rounds.length, 0)}</b><span>раундов</span></div>
+        <div class="kpi"><b>${h.evenings}</b><span>${BH.plural(h.evenings, "игровой вечер", "игровых вечера", "игровых вечеров")}</span></div>
+        <div class="kpi"><b>${!hours ? "—" : hours < 1 ? esc(BH.fmtDuration(h.time)) : (hours < 10 ? hours.toFixed(1).replace(".", ",") : Math.round(hours)) + " ч"}</b><span>${hours ? "за столом" : "время не записано"}</span></div>
       </div>`;
+    // one game filtered: the average game instead of the favourite (it is that game); a past year — its months, not the last 12
+    const avg = g1 && timed ? BH.fmtDuration(h.time / timed) : "";
+    const py = /^y(\d{4})$/.exec(statsPeriod), monthsTo = py && +py[1] < current ? new Date(+py[1], 11, 31, 12).getTime() : now;
+    const overview = BH.charts.highlightsHTML(h, { icons: IC, avg, timed, oneGame: !!g1 }) + BH.charts.monthsHTML(fin, monthsTo) + BH.charts.placesHTML(byPlace);
+    const players = BH.charts.ratesHTML(ppl, statsSort, !!g1) + BH.charts.raceHTML(fin, ppl) + BH.charts.headToHeadHTML(fin, ppl);
     const tabs = [
-      // the charts first, then the same numbers as a table; who beats whom last
-      { id: "players", label: "Игроки", n: ppl.length, html: `${BH.charts.ratesHTML(ppl)}${BH.charts.raceHTML(fin, ppl)}<section class="panel ch-table"><h2>Партии и победы</h2><div class="scroll-x"><table class="tbl">
-        <thead><tr><th>Игрок</th><th>Партий</th><th>Побед</th>${statsGame ? "<th>Лучший счёт</th>" : ""}</tr></thead>
-        <tbody>${ppl.map(x => `<tr><td><span class="row">${BH.avatar(x.p, "sm")}${esc(x.p.name)}</span></td><td>${x.played}</td><td>${x.wins}</td>${statsGame ? `<td>${x.best}</td>` : ""}</tr>`).join("")}</tbody></table></div></section>${BH.charts.headToHeadHTML(fin, ppl)}` },
-      { id: "games", label: "Игры", n: byGame.length, html: `${BH.charts.monthsHTML(fin)}<section class="panel"><table class="tbl"><thead><tr><th>Игра</th><th>Партий</th><th>Последняя</th></tr></thead>
-        <tbody>${byGame.map(x => `<tr><td>${esc(x.g.name)}</td><td>${x.n}</td><td>${x.last ? BH.fmtDate(x.last) : ""}</td></tr>`).join("")}</tbody></table></section>` },
-      { id: "places", label: "Места", n: byPlace.length, html: `<section class="panel"><table class="tbl"><thead><tr><th>Место</th><th>Партий</th></tr></thead>
-        <tbody>${byPlace.map(x => `<tr><td>${esc(x.p.name)}</td><td>${x.n}</td></tr>`).join("")}</tbody></table></section>` },
+      { id: "overview", label: "Обзор", html: overview },
+      { id: "players", label: "Игроки", html: players },
+      { id: "games", label: "Игры", html: BH.charts.gamesHTML(byGame, g => coverOf(g, "mini")) },
       { id: "year", label: "Итоги года" },
     ];
     const cur = pickTab(tabs, statsTab);
+    // nothing to show: no finished game yet; the game never played; or nothing in this period
+    const empty = !all.length ? `<div class="empty">Здесь появятся победы, любимые игры и места, когда вы доиграете первую партию.</div>`
+      : statsPeriod === "all" ? `<div class="empty">В эту игру ещё не играли. Выберите другую игру или все игры.</div>`
+      : `<div class="empty">За этот период ${g1 ? "в эту игру " : ""}партий нет. Выберите другой период${g1 ? " или все игры" : ""}.</div>`;
     return tabScreen({ back: backSmartTo("#/menu", "Меню"), pic: `<span class="phead-ic">${IC.chart}</span>`, title: "Статистика", sub: "По завершённым партиям",
       tabs: tabBar("stats-tab", cur.id, tabs, "Разделы статистики"),
-      body: cur.id === "year" ? yearReviewHTML() : top + (fin.length ? cur.html : `<div class="empty">Здесь появятся победы, любимые игры и места, когда вы доиграете первую партию.</div>`) });
+      body: cur.id === "year" ? yearReviewHTML() : filters + (fin.length ? totals + cur.html : empty) });
   }
 
   /* ---------- settings ---------- */
@@ -2718,6 +2731,7 @@
       case "done-tab": { if (s) { doneTab[s.id] = el.dataset.tab; render(); window.scrollTo(0, 0); } break; }
       case "gc-all": gcard.allPl = !gcard.allPl; render(); break;
       case "stats-tab": statsTab = el.dataset.tab; render(); window.scrollTo(0, 0); break;
+      case "stats-sort": statsSort = el.dataset.v === "rate" ? "rate" : "wins"; render(); refocus(`[data-act="stats-sort"][data-v="${statsSort}"]`); break;
       case "gc-rec": gcard.allRec = !gcard.allRec; render(); break;
       case "pc-facts": pcard.allFacts = !pcard.allFacts; render(); break;
       case "pc-all": pcard.allRivals = !pcard.allRivals; render(); break;
@@ -3053,7 +3067,8 @@
     const el = e.target;
     const r = route(), s = r.a === "s" ? BH.session(r.b) : null;
     if (el.dataset.act === "stats-year") { reviewYear = Number(el.value); render(); refocus('[data-act="stats-year"]'); }
-    if (el.dataset.act === "stats-game") { statsGame = el.value; render(); }
+    if (el.dataset.act === "stats-game") { statsGame = el.value; render(); refocus('[data-act="stats-game"]'); }
+    if (el.dataset.act === "stats-period") { statsPeriod = el.value; render(); refocus('[data-act="stats-period"]'); }
     if (el.dataset.act === "pl-period") { plcard.period = el.value; render(); refocus('[data-act="pl-period"]'); }
     if (el.dataset.act === "gc-period") { gcard.period = el.value; render(); refocus('[data-act="gc-period"]'); }
     if (el.dataset.act === "pc-period") { pcard.period = el.value; render(); refocus('[data-act="pc-period"]'); }
@@ -3283,7 +3298,7 @@
   window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", applyTheme);
 
   /* ---------- start ---------- */
-  BH.version = "0.42.1";
+  BH.version = "0.43.0";
   applyTheme();
   // reloaded while a sheet was open: step off its history entry; a fresh start has nothing before it
   if (history.state && history.state.ov) history.back();
