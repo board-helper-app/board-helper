@@ -130,7 +130,7 @@ t("in-game texts of every game are short", () => {
     const R = game.rounds || {}, last = R.count || 8, rem = typeof R.reminder === "function" ? R.reminder(c) : R.reminder;
     const lines = [...(rem || []), ...(game.cards || []).flatMap(k => k.does.split("\n"))];
     for (let r = 1; r <= last; r++) {
-      if (R.phases) for (const p of R.phases(c, r, last)) lines.push(...(p.steps || [p.text]));
+      for (const p of BH.stagesOf(game, c, r, last)) lines.push(...(p.steps || [p.text]));
       lines.push(...((typeof R.after === "function" ? R.after(c, r, last) : R.after) || []));
     }
     // a heist of a cooperative game: its steps with every card in play, and what each card says
@@ -140,6 +140,26 @@ t("in-game texts of every game are short", () => {
       for (const k of ["ch", "sp"]) for (const d of Object.values(game.heist.cards[k])) lines.push(...d.steps, ...(d.line ? [d.line] : []));
     }
     for (const l of lines) assert.ok(words(l) <= 16, `${game.id}: «${l}» — ${words(l)} слов`);
+  }
+});
+// docs/ui.md «Ход или раунд — по этапам» (the user, 28.11.2026: «опять портянка текста в раунде»): the turn or the round is
+// a strip of stages, one open at a time, at most 4 lines each, with a short name that fits a chip on a phone
+t("every turn is split into stages of at most 4 lines", () => {
+  for (const game of BH.games) {
+    if (game.heist) continue;   // The Gang: the heist has its own steps
+    const R = game.rounds || {}, last = R.count || 3, opts = (game.options || []).map(o => o.id), exps = (game.expansions || []).map(e => e.id);
+    const combos = [[], opts, ...opts.map(o => [o])];
+    for (let n = game.players.min; n <= Math.min(game.players.max, 10); n++) for (const on of combos) for (const ex of [[], exps]) {
+      const c = { players: n, opt: id => on.includes(id), has: id => ex.includes(id), exp: new Set(ex), firstName: () => null };
+      for (let r = 1; r <= last; r++) {
+        const st = BH.stagesOf(game, c, r, last);
+        assert.ok(st.length <= 4, `${game.id}: ${st.length} этапов`);
+        for (const p of st) {
+          assert.ok(p.steps.length <= 4, `${game.id} (${n} игроков, ${on.join(",") || "без вариантов"}, раунд ${r}) «${p.title}»: ${p.steps.length} строк`);
+          if (st.length > 1) assert.ok((p.short || p.title).length <= (st.length > 3 ? 9 : 12), `${game.id}: «${p.short || p.title}» не помещается на полоске`);
+        }
+      }
+    }
   }
 });
 t("normalize keeps a default place", () => assert.strictEqual(BH._normalize({}).places[0].name, "Дома"));
@@ -1730,7 +1750,7 @@ console.log(`${passed} passed${process.exitCode ? ", some FAILED" : ""}`);
   const sess = (n, opts = {}) => ({ gameId: "hotstreak", players: Array.from({ length: n }, (_, i) => "p" + i), exp: [], opts, rounds: [] });
   const ctx = (n, o) => BH.ctxOf(sess(n, o));
   const steps = (n, o) => BH.setupSteps(sess(n, o)), by = (n, id, o) => steps(n, o).find(s => s.id === id);
-  const ph = (n, r, o) => G.rounds.phases(ctx(n, o), r, 3).map(p => p.title + ": " + p.steps.join(" ")).join(" | ");
+  const ph = (n, r, o) => BH.stagesOf(G, ctx(n, o), r, 3).map(p => p.title + ": " + p.steps.join(" ")).join(" | ");
   const after = (n, r, o) => G.rounds.after(ctx(n, o), r, 3).join(" ");
   t("hotstreak: 3 races scored at the end in money; 2 to 20 players; the variant for large groups is forced from 9", () => {
     assert.ok(BH.isEndScored(G) && !BH.isRace(G) && !BH.isCoop(G)); assert.strictEqual(G.rounds.count, 3);
@@ -1745,7 +1765,7 @@ console.log(`${passed} passed${process.exitCode ? ", some FAILED" : ""}`);
     const table = { 3: 11, 4: 10, 5: 9, 6: 8, 7: 7, 8: 6 };
     for (const n of [3, 4, 5, 6, 7, 8]) { assert.strictEqual(rnd(n), table[n], n + " players"); assert.strictEqual(4 + rnd(n) + n, 18); }
     assert.strictEqual(rnd(2), 10); assert.strictEqual(4 + 10 + 2 * 2, 18, "two players slip 2 cards each");
-    assert.strictEqual(rnd(9), 14); assert.strictEqual(4 + 14, 18, "no hands in the 9+ variant"); assert.match(by(9, "deck").text, /в книге число не названо/);
+    assert.strictEqual(rnd(9), 14); assert.strictEqual(4 + 14, 18, "no hands in the 9+ variant"); assert.match(by(9, "deck").text, /В книге число не названо/);
     assert.strictEqual(rnd(4, { big: true }), 10, "the variant in a smaller group: the deck as in a normal game (p. 28)"); assert.ok(!/ровно \*18\*/.test(ph(4, 1, { big: true })));
     assert.match(by(2, "hand").text, /по \*4\* карты/); assert.match(by(5, "hand").text, /по \*3\* карты/);
     for (const n of [2, 3, 8]) assert.match(ph(n, 1), /ровно \*18\* карт/);
@@ -1758,22 +1778,25 @@ console.log(`${passed} passed${process.exitCode ? ", some FAILED" : ""}`);
     assert.match(by(4, "track").text, /\*4\* маскотов на старт/);
   });
   t("hotstreak p.16, p.27, p.28: the snake draft; 2 players draft 3; the double ticket only in the 3rd race", () => {
-    assert.match(ph(4, 1), /билет самый \*невезучий\*/); assert.match(ph(4, 2), /\*следующий\* по часовой/);
+    assert.match(ph(4, 1), /билет берёт самый \*невезучий\* игрок/); assert.match(ph(4, 2), /сосед \*по часовой стрелке\* от того, кто начинал/);
     assert.match(ph(4, 1), /\*в обратную\* сторону/); assert.match(ph(4, 1), /\*«Норм»\* или \*«Риск»\*/);
-    assert.match(ph(2, 1), /\*3\* билета, по очереди 1-2-2-1-1-2/); assert.match(ph(2, 2), /\*не тот\*, кто начинал/);
+    assert.match(ph(2, 1), /\*3\* билета по очереди: первый, второй, второй, первый, первый, второй/); assert.match(ph(2, 2), /первый билет берёт \*другой\* игрок/);
     assert.match(ph(4, 1), /\*1 карту\* из руки/); assert.match(ph(2, 1), /\*2 карты\* из руки/);
-    for (const n of [2, 4]) { assert.ok(!/вдвое/.test(ph(n, 1) + ph(n, 2))); assert.match(ph(n, 3), /платит \*вдвое\*.*проигрыш тоже вдвое/); }
-    assert.match(ph(12, 3), /Обведи одну из двух ставок/); assert.match(ph(12, 3), /Обведённая ставка платит \*вдвое\*/);
+    for (const n of [2, 4]) { assert.ok(!/вдвое/.test(ph(n, 1) + ph(n, 2))); assert.match(ph(n, 3), /положи \*сверху\* тот, что должен заплатить \*вдвое\*.*платит \*вдвое\*, но и проигрыш по нему удваивается/); }
+    const named = (n, first, r) => { const ss = sess(n); ss.first = first; return BH.stagesOf(G, Object.assign(BH.ctxOf(ss), { firstName: k => ss.players[(ss.players.indexOf(first) + k) % n].toUpperCase() }), r, 3)[0].steps[0]; };
+    assert.match(named(4, "p2", 1), /Первый билет берёт \*P2\*/); assert.match(named(4, "p2", 2), /\*P3\*/); assert.match(named(4, "p2", 3), /\*P0\*/);
+    assert.match(named(2, "p1", 2), /\*P0\*/, "two players: in turn"); assert.ok(!/невезучий/.test(named(4, "p2", 1)));
+    assert.match(ph(12, 3), /обведи одну из двух ставок/); assert.match(ph(12, 3), /Обведённая ставка платит \*вдвое\*/);
   });
   t("hotstreak p.24–26, p.29: the end of a race, payouts; 9+ — the four pots and 3 cards swapped before races 2 and 3", () => {
-    assert.match(ph(4, 1), /когда \*3\* маскота финишировали или выбыли/); assert.match(ph(4, 1), /следующей \*белой\* линии — кто под ней, выбывает/);
+    assert.match(ph(4, 1), /когда \*3\* маскота финишируют или выбудут/); assert.match(ph(4, 1), /следующей \*сплошной белой\* линии. Маскоты под сложенной трассой выбывают/);
     assert.match(ph(4, 1), /снова сбрасывает \*3\*/); assert.match(ph(4, 1), /на \*высшее\* свободное место.*на \*низшее\*/);
-    assert.match(ph(4, 1), /за \*4-е\* место — \$0/); assert.match(ph(4, 1), /останется \*\$0\*/);
+    assert.match(ph(4, 1), /За \*4-е\* место он не платит/); assert.match(ph(4, 1), /останется \*\$0\*/);
     const big = ph(10, 2);
-    assert.match(big, /\*\$18\*, 2-е — \*\$12\*, 3-е — \*\$6\*, побочная ставка — \*\$18\*/); assert.match(big, /округлением \*вниз\*/);
-    assert.match(after(10, 1), /заменяет \*3\* случайные карты/); assert.ok(!/заменяет/.test(after(10, 3) + ph(10, 2) + after(4, 1)), "the swap is before the bets of races 2 and 3"); assert.ok(!/из руки/.test(big));
-    assert.match(after(4, 1), /каждому \*1 карту\* — в руке снова 3/); assert.match(after(2, 2), /\*2 карты\* — в руке снова 4/);
-    assert.match(after(4, 3), /Сосчитайте свои деньги/); assert.match(after(10, 3), /Сложите свои выигрыши/);
+    assert.match(big, /за 1-е место — \*\$18\*, за 2-е — \*\$12\*, за 3-е — \*\$6\*.*побочной ставки, \*\$18\*/); assert.match(big, /округляют \*вниз\*/);
+    assert.match(after(10, 1), /убирает из колоды \*3\* случайные карты, добавляет 3 новые/); assert.ok(!/убирает из колоды/.test(after(10, 3) + ph(10, 2) + after(4, 1)), "the swap is before the bets of races 2 and 3"); assert.ok(!/из руки/.test(big));
+    assert.match(after(4, 1), /по \*одной\* карте: в руке снова 3 карты/); assert.match(after(2, 2), /по \*две\* карты: в руке снова 4 карты/);
+    assert.match(after(4, 3), /Каждый считает свои деньги/); assert.match(after(10, 3), /Каждый складывает выигрыши, записанные на листке/);
     assert.ok(!/«Норм»/.test(after(10, 1)), "no tickets in the 9+ variant");
   });
   t("hotstreak p.27: the money is written once — the most wins, equal money is a draw (the book has no tie-breaker)", () => {

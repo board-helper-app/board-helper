@@ -856,6 +856,12 @@ body:has(.setup-screen.tight) .topbar{display:none}
 .hs-chips{margin-top:10px;border-top:1px solid var(--line);padding-top:8px}
 .hs-chips summary{cursor:pointer;color:var(--muted);font-weight:600}
 .hs-next{margin-top:14px;margin-bottom:4px}
+/* the turn in stages (docs/ui.md «Ход или раунд — по этапам»): the strip of the heist, tighter chips for up to four stages */
+.st-strip .hs-chip{padding:2px 4px;font-size:14px}
+.st-strip .hs-chip span{white-space:normal;line-height:1.1;text-align:center;overflow-wrap:anywhere}
+.st-panel{scroll-margin-top:120px}
+.st-panel .rule-img + .hs-title,.st-panel .a-wide + .hs-title,.st-panel img + .hs-title{margin-top:12px}
+.st-panel .hs-title{margin-top:4px}
 .hs-next svg{width:18px;height:18px}
 /* The Gang: the showdown check — card places, a keypad of values and suits, the red chips, the verdict */
 .sc-body .sc-sec{margin-top:14px}

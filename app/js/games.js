@@ -12,6 +12,9 @@
     def.rules = def.rules || [];
     def.faq = def.faq || [];
     def.players = Object.assign({ min: 1, max: 12 }, def.players || {});
+    // a turn told in stages (rounds.stages) also reads as one list where a list is wanted (the tests, the voice cheat sheet)
+    const R = def.rounds;
+    if (R && R.stages && !R.reminder) R.reminder = typeof R.stages === "function" ? c => R.stages(c, 1, R.count || 1).flatMap(x => x.steps) : R.stages.flatMap(x => x.steps);
     BH.games = BH.games.filter(g => g.id !== def.id).concat(def);
   };
   BH.game = id => BH.games.find(g => g.id === id) || null;
@@ -20,7 +23,13 @@
   BH.FAQ_SRC = { author: "ответ автора игры", publisher: "ответ издателя", players: "так решают игроки", disputed: "спорный вопрос", house: "домашнее правило" };
 
   /* context handed to a game's conditions: how many players, which expansions */
-  BH.ctxOf = s => ({ players: s.players.length, exp: new Set(s.exp), has: id => s.exp.includes(id), opt: id => !!(s.opts && s.opts[id]) });
+  // firstName(k): the name of the player k seats clockwise from the chosen first player (null before the wheel)
+  BH.ctxOf = s => ({ players: s.players.length, exp: new Set(s.exp), has: id => s.exp.includes(id), opt: id => !!(s.opts && s.opts[id]),
+    firstName: k => {
+      const i = s.first ? s.players.indexOf(s.first) : -1; if (i < 0) return null;
+      const p = BH.player && BH.state ? BH.player(s.players[(i + k) % s.players.length]) : null;
+      return p ? p.name : null;
+    } });
 
   /* game options offered when creating a game (e.g. Flip 7's solo challenge): the ones that apply now */
   BH.gameOptions = (g, ctx) => (g.options || []).filter(o => !o.when || o.when(ctx));
@@ -47,6 +56,15 @@
     return (first + r) % n;
   };
   BH.leaderAt = (s, r) => s.players[BH.leaderIndex(s, r)];
+  /* a turn or a round in stages (docs/ui.md «Ход или раунд — по этапам»): [{ title, short?, steps, art? }], at most 4 lines
+     each. A game gives rounds.stages (ctx, round, last) or phases; a game with one short list has a single stage */
+  BH.stagesOf = (g, ctx, r, last) => {
+    const R = (g && g.rounds) || {};
+    if (R.stages) return typeof R.stages === "function" ? R.stages(ctx, r, last) : R.stages;
+    if (R.phases) return R.phases(ctx, r, last);
+    const rem = typeof R.reminder === "function" ? R.reminder(ctx) : R.reminder;
+    return rem && rem.length ? [{ title: R.title || "Как идёт ход", steps: rem }] : [];
+  };
   // the sides of a game: partners play as one (crokinole for four — seats 1 and 3 against 2 and 4); otherwise each player alone
   BH.sidesOf = s => {
     const g = BH.game(s.gameId);

@@ -601,7 +601,7 @@
 
     // the seating order, clockwise: who sits after whom decides who deals (or starts) each round
     const nameOf = id => (BH.player(id) || { name: "?" }).name;
-    const orderSec = cnt > 1 && !(g && g.rounds && g.rounds.leader === false) ? step2("order", "Порядок за столом", esc(draft.players.map(nameOf).join(" → ")),
+    const orderSec = cnt > 1 && !(g && g.rounds && g.rounds.leader === false && !g.rounds.seats) ? step2("order", "Порядок за столом", esc(draft.players.map(nameOf).join(" → ")),
       `<p class="small muted">По часовой стрелке, как сидите: от этого зависит, кто сдаёт или начинает каждый раунд.</p>
        <div>${draft.players.map((id, i) => { const p = BH.player(id) || { name: "?", color: "#888" }; return `<div class="seat"><span class="n">${i + 1}</span>${BH.avatar(p, "sm")}<span>${esc(p.name)}</span>
          <span class="mv"><button class="icon-btn" data-act="seat-up" data-i="${i}" aria-label="Выше: ${esc(p.name)}" ${i ? "" : "disabled"}>${I.up}</button><button class="icon-btn" data-act="seat-down" data-i="${i}" aria-label="Ниже: ${esc(p.name)}" ${i < cnt - 1 ? "" : "disabled"}>${I.down}</button></span></div>`; }).join("")}</div>
@@ -973,6 +973,20 @@
   const textHTML = (t, gid) => String(t).includes("\n") ? stepsHTML(String(t).split("\n"), gid) : `<p>${fmtStep(t, gid)}</p>`;
   // what to do once the round is over: a list from the game (a function of the round, or the same every round)
   const afterOf = (g, ctx, r, last) => (typeof g.rounds.after === "function" ? g.rounds.after(ctx, r, last) : g.rounds.after) || [];
+  /* the turn or the round in stages (docs/ui.md «Ход или раунд — по этапам»), as the heist of The Gang: a strip of stages,
+     one open, «Дальше» to the next; after the last — what to do once the round is over. The open stage is kept per round
+     in memory: a new round starts at the first; a race (no rounds) comes back to the first for the next player */
+  const playStage = {};
+  function stagesHTML(s, g, ctx, r, last, o = {}) {
+    const st = BH.stagesOf(g, ctx, r, last); if (!st.length) return "";
+    const key = s.id, seen = playStage[key], end = st.length - 1, cur = Math.min(seen && seen.n === s.rounds.length ? seen.i : 0, end), p = st[cur];
+    const name = x => x.short || x.title;
+    const strip = end ? `<div class="hs-strip st-strip" role="tablist" aria-label="Этапы" style="grid-template-columns:repeat(${st.length},minmax(0,1fr))">${st.map((x, i) => `<button type="button" role="tab" class="hs-chip${i < cur ? " done" : ""}" data-act="play-stage" data-k="${esc(key)}" data-i="${i}" aria-selected="${i === cur}" aria-label="${esc(x.title)}">${i < cur ? I.check : ""}<span>${esc(name(x))}</span></button>`).join("")}</div>` : "";
+    const art = p.art || (cur === 0 ? o.art || "" : "");
+    const next = cur < end ? `<button type="button" class="btn block hs-next" data-act="play-stage" data-k="${esc(key)}" data-i="${cur + 1}">Дальше: ${esc(name(st[cur + 1]).toLowerCase())}${IC.chev}</button>`
+      : end && o.cycle ? `<button type="button" class="btn block hs-next" data-act="play-stage" data-k="${esc(key)}" data-i="0">${esc(o.cycle)}${IC.chev}</button>` : "";
+    return `${strip}${art}${end ? `<h3 class="hs-title">${esc(p.title)}</h3>` : ""}<div class="reminder">${stepsHTML(p.steps, g.id)}</div>${next}${cur === end ? afterHTML(o.after || [], g.id) : ""}`;
+  }
   const afterHTML = (list, gid) => list.length ? `<div class="ph-after"><span class="ph-after-h">${BH.game(gid) && BH.game(gid).heist ? "После ограбления" : BH.roundW(BH.game(gid)).after}</span>${stepsHTML(list, gid)}</div>` : "";
   /* a screen of tabs (docs/ui.md «Экран с вкладками»): a compact header pinned on top — back as an icon, a picture, the
      title and one line under it, an action on the right — the tabs under it, each tab a screen of its own;
@@ -1010,13 +1024,12 @@
   function viewPlayEnd(s, g) {
     const last = g.rounds.count || 8, r = s.rounds.length, over = r >= last, cur = Math.min(r + 1, last), ctx = BH.ctxOf(s);
     const W = BH.roundW(g), E = BH.endW(g);
-    const phases = g.rounds.phases ? g.rounds.phases(ctx, cur, last) : [];
     const round = `<div class="status-row">
         <div class="stat-tile"><span class="label">${esc(W.one)}</span><span class="round-no">${over ? last : cur}<small> из ${last}</small></span></div>
         <div class="stat-tile at-table"><div class="leader-t"><span class="label">За столом</span><span class="faces">${s.players.map(id => BH.avatar(BH.player(id) || { name: "?", color: "#888" }, "sm")).join("")}</span></div></div>
       </div>
       ${over ? `<section class="note good end-ready">${I.check}<span>${esc(E.allPlayed(last))}. ${esc(E.ready)}</span></section>`
-        : `<section class="panel"><div class="sec-h"><h2>${esc(W.one)} ${cur}: что делать</h2></div><ol class="phase-list">${phases.map(p => `<li><b>${esc(p.title)}</b>${stepsHTML(p.steps || [p.text], g.id)}</li>`).join("")}</ol>${afterHTML(afterOf(g, ctx, cur, last), g.id)}</section>`}`;
+        : `<section class="panel st-panel"><div class="sec-h"><h2>${esc(W.one)} ${cur}: что делать</h2></div>${stagesHTML(s, g, ctx, cur, last, { after: afterOf(g, ctx, cur, last) })}</section>`}`;
     return playShell(s, g, [{ id: "round", label: W.one, html: round }, rulesTab(s, g)], `<div class="game-bar">
         ${askBtn()}
         ${over ? `<button class="btn primary big" data-act="end-open">${I.check}<span class="ell">${esc(E.title)}</span></button>`
@@ -1132,10 +1145,9 @@
   // a race without rounds (Coconuts): the turn in short lines, the magic cards at hand, the end in one tap
   function viewPlayRace(s, g) {
     const sc = g.scoring, ctx = BH.ctxOf(s), goal = BH.raceGoal(g, s), cardsHtml = cardsPanel(s, g);
-    const reminder = typeof g.rounds.reminder === "function" ? g.rounds.reminder(ctx) : g.rounds.reminder;
     const turn = `${BH.player(s.first) ? `<div class="status-row" style="grid-template-columns:minmax(0,1fr)"><div class="stat-tile leader">${BH.avatar(BH.player(s.first))}<div class="leader-t"><span class="label">Начинает</span><b>${esc(BH.player(s.first).name)}</b></div></div></div>` : ""}
       ${chanceRow(s, g)}
-      <section class="panel"><div class="sec-h"><h2>${esc(g.rounds.title || "Как идёт ход")}</h2></div>${(typeof g.rounds.art === "function" ? g.rounds.art(ctx) : g.rounds.art) || ""}<div class="reminder">${stepsHTML(reminder, g.id)}</div></section>
+      <section class="panel st-panel"><div class="sec-h"><h2>${esc(g.rounds.title || "Как идёт ход")}</h2></div>${stagesHTML(s, g, ctx, 0, 0, { art: (typeof g.rounds.art === "function" ? g.rounds.art(ctx) : g.rounds.art) || "", cycle: /раунд/i.test(g.rounds.title || "") ? "К началу раунда" : "К началу хода" })}</section>
       <section class="panel"><div class="sec-h"><h2>Конец игры</h2></div>${stepsHTML(sc.end(goal), g.id)}</section>`;
     return playShell(s, g, [
       { id: "turn", label: g.rounds.tab || "Ход", html: turn },
@@ -1220,7 +1232,7 @@
       </div>
       <div class="board">${board}</div>
       ${chanceRow(s, g)}
-      ${g.rounds.reminder ? `<details class="panel hint" ${r === 0 ? "open" : ""}><summary>${esc(g.rounds.title || "Как идёт раунд")}</summary><div class="reminder">${stepsHTML(g.rounds.reminder, g.id)}${afterHTML(afterOf(g, BH.ctxOf(s), r + 1, 0), g.id)}</div></details>` : ""}`;
+      ${g.rounds.reminder ? `<details class="panel hint st-panel" ${r === 0 || (playStage[s.id] && playStage[s.id].n === r) ? "open" : ""}><summary>${esc(g.rounds.title || "Как идёт раунд")}</summary>${stagesHTML(s, g, BH.ctxOf(s), r + 1, 0, { after: afterOf(g, BH.ctxOf(s), r + 1, 0) })}</details>` : ""}`;
     const cardsHtml = cardsPanel(s, g);
     return playShell(s, g, [
       { id: "score", label: "Счёт", html: score },
@@ -1238,7 +1250,7 @@
   /* a game of one mini-game (Dobble) or of one goal (Jackal): how to play first, then the mini-games or tiles, the rules;
      at the bottom — the result: which mini-game, how many cards each has */
   function viewPlayOne(s, g) {
-    const how = g.rounds.reminder ? `<section class="panel"><div class="sec-h"><h2>${esc(g.rounds.title || "Как играть")}</h2></div><div class="reminder">${stepsHTML(g.rounds.reminder, g.id)}${afterHTML(afterOf(g, BH.ctxOf(s), 1, 1), g.id)}</div></section>` : "";
+    const how = g.rounds.reminder ? `<section class="panel st-panel"><div class="sec-h"><h2>${esc(g.rounds.title || "Как играть")}</h2></div>${stagesHTML(s, g, BH.ctxOf(s), 1, 1, { after: afterOf(g, BH.ctxOf(s), 1, 1) })}</section>` : "";
     const cardsHtml = cardsPanel(s, g);
     return playShell(s, g, [
       how && { id: "how", label: g.rounds.title || "Как играть", html: how },
@@ -2835,6 +2847,11 @@
       /* play */
       case "new-round": openSheet(s, null); break;
       case "edit-round": openSheet(s, +el.dataset.i); break;
+      case "play-stage": {
+        playStage[el.dataset.k] = { n: s.rounds.length, i: +el.dataset.i }; quiet(); render();
+        { const h = document.querySelector(".st-panel"); if (h && h.getBoundingClientRect().top < 0) h.scrollIntoView({ block: "start" }); }
+        break;
+      }
       case "heist-step": {
         const g = BH.game(s.gameId), base = s.coop || g.heist.start(BH.ctxOf(s));
         s.coop = Object.assign({}, base, { step: Math.max(0, Math.min(4, +el.dataset.i)) }); if (!s.coop.step) delete s.coop.step;
@@ -3301,7 +3318,7 @@
   window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", applyTheme);
 
   /* ---------- start ---------- */
-  BH.version = "0.45.0";
+  BH.version = "0.46.0";
   applyTheme();
   // reloaded while a sheet was open: step off its history entry; a fresh start has nothing before it
   if (history.state && history.state.ov) history.back();
