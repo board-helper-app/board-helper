@@ -279,7 +279,7 @@
     const fin = finishedSessions();
     return BH.games.map(g => ({ g, n: fin.filter(s => s.gameId === g.id).length })).sort((a, b) => b.n - a.n || a.g.name.localeCompare(b.g.name, "ru"));
   }
-  const squareCovers = new Set(["dragons","cheese","bigwalk","jackal","thegang","toybattle","ribbit","dobble","faraway","flip7","flip7v","zoo","goldfever","coconuts","crokinole"]);
+  const squareCovers = new Set(["quoridor","dragons","cheese","bigwalk","jackal","thegang","toybattle","ribbit","dobble","faraway","flip7","flip7v","zoo","goldfever","coconuts","crokinole"]);
   const coverOf = (g, cls) => {
     if (g && squareCovers.has(g.id)) {
       return `<span class="cover has-img ${cls || ""}"><img src="games/covers/${esc(g.id)}.webp" alt="" width="512" height="512" decoding="async"></span>`;
@@ -3298,7 +3298,7 @@
   window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", applyTheme);
 
   /* ---------- start ---------- */
-  BH.version = "0.43.0";
+  BH.version = "0.44.0";
   applyTheme();
   // reloaded while a sheet was open: step off its history entry; a fresh start has nothing before it
   if (history.state && history.state.ov) history.back();

@@ -9,7 +9,7 @@ const ctx = {
 };
 ctx.window = ctx;
 vm.createContext(ctx);
-for (const f of ["js/util.js", "js/store.js", "js/games.js", "js/chances.js", "js/charts.js", "js/art.js", "games/flip7.js", "games/flip7v.js", "games/faraway.js", "games/thegang.js", "games/crokinole.js", "games/coconuts.js", "games/goldfever.js", "games/zoo.js", "games/toybattle.js", "games/dobble.js", "games/ribbit.js", "games/jackal.js", "games/bigwalk.js", "games/cheese.js", "games/dragons.js"])
+for (const f of ["js/util.js", "js/store.js", "js/games.js", "js/chances.js", "js/charts.js", "js/art.js", "games/flip7.js", "games/flip7v.js", "games/faraway.js", "games/thegang.js", "games/crokinole.js", "games/coconuts.js", "games/goldfever.js", "games/zoo.js", "games/toybattle.js", "games/dobble.js", "games/ribbit.js", "games/jackal.js", "games/bigwalk.js", "games/cheese.js", "games/dragons.js", "games/quoridor.js"])
   vm.runInContext(fs.readFileSync(path.join(__dirname, "..", "app", f), "utf8"), ctx, { filename: f });
 const BH = ctx.BH, g = BH.game("flip7");
 let passed = 0;
@@ -1656,6 +1656,69 @@ console.log(`${passed} passed${process.exitCode ? ", some FAILED" : ""}`);
     assert.strictEqual(JSON.stringify(bad.filter(w => !/^(стол|ел|пол|угол|пьедестал)$/i.test(w))), JSON.stringify([]));
   });
   console.log(`dragons: ${passed - before} passed${process.exitCode ? ", some FAILED" : ""}`);
+}
+{
+  // Коридор: Gigamic's rulebook 10-2016, the Russian page 23 and the English page 4 (docs/rules-check.md)
+  const G = BH.game("quoridor"), before = passed;
+  const sess = n => ({ gameId: "quoridor", players: ["a", "b", "c", "d"].slice(0, n), exp: [], opts: {}, rounds: [] });
+  const R = n => G.rounds.reminder(BH.ctxOf(sess(n))).join(" ");
+  t("quoridor p.23: 2 or 4 players (never 3), 8+, 10–20 min; a race without rounds; the first by agreement", () => {
+    assert.strictEqual(G.players.min, 2); assert.strictEqual(G.players.max, 4); assert.deepStrictEqual([...G.players.only], [2, 4]);
+    assert.strictEqual(G.age, "8+"); assert.strictEqual(G.time, "10–20 мин");
+    assert.ok(BH.isRace(G) && !BH.isCoop(G) && !BH.isEndScored(G)); assert.strictEqual(G.rounds.leader, false);
+    assert.ok(/договариваются/.test(G.first.hint) && /часовой/.test(G.first.hint));
+  });
+  t("quoridor p.23: the box — 81 cells, 20 fences, 4 pawns; 10 fences each for two, 5 each for four", () => {
+    const body = G.rules.find(r => r.id === "components").body;
+    for (const s of ["81 клеткой", "20 деревянных перегородок", "4 фишки"]) assert.ok(body.includes(s), s);
+    const st = n => BH.setupSteps(sess(n)), by = (n, id) => st(n).find(s => s.id === id);
+    assert.deepStrictEqual([...st(2).map(s => s.id)], ["board", "fences"]);
+    assert.match(by(2, "fences").text, /\*10\* перегородок/); assert.match(by(4, "fences").text, /\*5\* перегородок/);
+    assert.strictEqual(2 * 10, 20); assert.strictEqual(4 * 5, 20);
+    assert.match(by(2, "board").text, /\*среднюю\* клетку первого ряда/); assert.match(by(4, "board").text, /\*среднюю\* клетку ближайшего/);
+    assert.match(by(2, "board").art, /start2/); assert.match(by(4, "board").art, /start4/);
+  });
+  t("quoridor p.23: the turn — a step or a fence; one cell four ways; fences closing two cells, never the whole way; the jump", () => {
+    for (const n of [2, 4]) {
+      const r = R(n);
+      assert.match(r, /сделай \*одно\*: передвинь фишку или поставь перегородку/);
+      assert.match(r, /на \*1\* клетку: вперёд, назад, вправо или влево/); assert.match(r, /не перепрыгивает — \*обходи\*/);
+      assert.match(r, /ровно \*2\* клетки/); assert.match(r, /\*перепрыгни\* её/); assert.match(r, /\*справа\* или \*слева\*/);
+      assert.match(r, /кончились — ходи только \*фишкой\*/);
+    }
+    assert.match(R(2), /выход к финишной линии ему \*оставь\*/); assert.match(R(4), /оставь \*каждому\*/);
+    // four players: one pawn at most, clockwise — two players see neither line
+    assert.match(R(4), /только \*одну\* фишку/); assert.match(R(4), /\*часовой\* стрелке/);
+    assert.ok(!/одну\* фишку|часовой/.test(R(2)));
+  });
+  t("quoridor p.23: the end — the first pawn on any of the 9 cells of the far line wins at once", () => {
+    const end = G.scoring.end().join(" ");
+    assert.match(end, /\*любую\* из 9 клеток/); assert.match(end, /\*напротив\* старта/);
+    const goals = BH.raceGoals(G, sess(2)); assert.strictEqual(goals.length, 1); assert.ok(!G.scoring.count, "no count: the first to arrive wins");
+    assert.match(goals[0].ask, /первой дошла до финишной линии/);
+  });
+  t("quoridor: rules, groups, questions refer to real sections; page 23", () => {
+    const ids = new Set(G.rules.map(r => r.id));
+    for (const gr of G.ruleGroups) for (const id of gr.ids) assert.ok(ids.has(id), "group " + id);
+    for (const gr of G.faqGroups) for (const id of gr.refs) assert.ok(ids.has(id), "faq group " + id);
+    for (const f of G.faq) { assert.ok(ids.has(f.ref), "faq ref " + f.ref); if (f.src) assert.ok(BH.FAQ_SRC[f.src], "faq src " + f.src); }
+    assert.ok(G.rules.every(r => r.page === 23));
+    const grouped = new Set(G.ruleGroups.flatMap(gr => gr.ids)); for (const id of ids) assert.ok(grouped.has(id), "rule in a group: " + id);
+    assert.ok(G.faq.some(f => /край поля/.test(f.q) && f.src === "disputed"), "the board's edge behind a pawn — the book says nothing");
+  });
+  t("quoridor: every picture is in the repository and in the offline cache", () => {
+    const html = [G.cover, G.rounds.art, ...BH.setupSteps(sess(2)).map(s => s.art), ...BH.setupSteps(sess(4)).map(s => s.art), ...G.rules.map(r => r.art)].join("");
+    const srcs = [...new Set([...html.matchAll(/src="([^"]+)"/g)].map(m => m[1]))], sw = fs.readFileSync(path.join(__dirname, "../app/sw.js"), "utf8");
+    assert.ok(srcs.length >= 11);
+    for (const src of srcs) { assert.ok(fs.existsSync(path.join(__dirname, "../app", src)), src); assert.ok(sw.includes(`"${src.split("/").pop().replace(".webp", "")}"`), "sw: " + src); }
+  });
+  t("quoridor: in-game texts are neutral — no «-л» forms", () => {
+    const texts = [R(2), R(4), ...G.scoring.end(), ...BH.setupSteps(sess(2)).map(x => x.text), ...BH.setupSteps(sess(4)).map(x => x.text), G.first.hint,
+      G.scoring.goalAsk, G.scoring.goalText, G.scoring.goalDone, ...G.faq.map(f => f.q + " " + f.a)].join(" ").replace(/[Кк]то [а-яё]+/g, "");
+    const bad = texts.match(/[А-Яа-яё]+(?:ил|ыл|ал|ял|ёл|ел|лся|лась)(?![А-Яа-яё])/g) || [];
+    assert.strictEqual(JSON.stringify(bad.filter(w => !/^(стол|ел|пол|угол|ряд)$/i.test(w))), JSON.stringify([]));
+  });
+  console.log(`quoridor: ${passed - before} passed${process.exitCode ? ", some FAILED" : ""}`);
 }
 {
   // the statistics charts (js/charts.js): the numbers behind the pictures
