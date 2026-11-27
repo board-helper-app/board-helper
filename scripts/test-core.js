@@ -9,7 +9,7 @@ const ctx = {
 };
 ctx.window = ctx;
 vm.createContext(ctx);
-for (const f of ["js/util.js", "js/store.js", "js/games.js", "js/chances.js", "js/charts.js", "js/art.js", "games/flip7.js", "games/flip7v.js", "games/faraway.js", "games/thegang.js", "games/crokinole.js", "games/coconuts.js", "games/goldfever.js", "games/zoo.js", "games/toybattle.js", "games/dobble.js", "games/ribbit.js", "games/jackal.js", "games/bigwalk.js", "games/cheese.js", "games/dragons.js", "games/quoridor.js"])
+for (const f of ["js/util.js", "js/store.js", "js/games.js", "js/chances.js", "js/charts.js", "js/art.js", "games/flip7.js", "games/flip7v.js", "games/faraway.js", "games/thegang.js", "games/crokinole.js", "games/coconuts.js", "games/goldfever.js", "games/zoo.js", "games/toybattle.js", "games/dobble.js", "games/ribbit.js", "games/jackal.js", "games/bigwalk.js", "games/cheese.js", "games/dragons.js", "games/quoridor.js", "games/hotstreak.js"])
   vm.runInContext(fs.readFileSync(path.join(__dirname, "..", "app", f), "utf8"), ctx, { filename: f });
 const BH = ctx.BH, g = BH.game("flip7");
 let passed = 0;
@@ -1723,6 +1723,89 @@ console.log(`${passed} passed${process.exitCode ? ", some FAILED" : ""}`);
     assert.strictEqual(JSON.stringify(bad.filter(w => !/^(стол|ел|пол|угол|ряд)$/i.test(w))), JSON.stringify([]));
   });
   console.log(`quoridor: ${passed - before} passed${process.exitCode ? ", some FAILED" : ""}`);
+}
+{
+  // Вперёд, маскот! (Hot Streak): CMYK's English rulebook, pages as printed (docs/rules-check.md)
+  const G = BH.game("hotstreak"), before = passed;
+  const sess = (n, opts = {}) => ({ gameId: "hotstreak", players: Array.from({ length: n }, (_, i) => "p" + i), exp: [], opts, rounds: [] });
+  const ctx = (n, o) => BH.ctxOf(sess(n, o));
+  const steps = (n, o) => BH.setupSteps(sess(n, o)), by = (n, id, o) => steps(n, o).find(s => s.id === id);
+  const ph = (n, r, o) => G.rounds.phases(ctx(n, o), r, 3).map(p => p.title + ": " + p.steps.join(" ")).join(" | ");
+  const after = (n, r, o) => G.rounds.after(ctx(n, o), r, 3).join(" ");
+  t("hotstreak: 3 races scored at the end in money; 2 to 20 players; the variant for large groups is forced from 9", () => {
+    assert.ok(BH.isEndScored(G) && !BH.isRace(G) && !BH.isCoop(G)); assert.strictEqual(G.rounds.count, 3);
+    assert.strictEqual(G.players.min, 2); assert.strictEqual(G.players.max, 20);
+    const big = BH.gameOptions(G, ctx(5)).find(o => o.id === "big"); assert.ok(big && !big.default);
+    assert.ok(!BH.gameOptions(G, ctx(9)).some(o => o.id === "big"), "9+: no choice, the variant itself");
+    assert.ok(!steps(9).some(s => s.id === "hand") && steps(8).some(s => s.id === "hand"));
+    assert.strictEqual(BH.endW(G).title, "Подсчёт денег"); assert.strictEqual(BH.roundW(G).one, "Гонка");
+  });
+  t("hotstreak p.14, p.18, p.28: the race deck — 4 starting cards and random ones, 18 when a race starts", () => {
+    const rnd = (n, o) => Number(by(n, "deck", o).text.match(/\*(\d+)\* случайных/)[1]);
+    const table = { 3: 11, 4: 10, 5: 9, 6: 8, 7: 7, 8: 6 };
+    for (const n of [3, 4, 5, 6, 7, 8]) { assert.strictEqual(rnd(n), table[n], n + " players"); assert.strictEqual(4 + rnd(n) + n, 18); }
+    assert.strictEqual(rnd(2), 10); assert.strictEqual(4 + 10 + 2 * 2, 18, "two players slip 2 cards each");
+    assert.strictEqual(rnd(9), 14); assert.strictEqual(4 + 14, 18, "no hands in the 9+ variant"); assert.match(by(9, "deck").text, /в книге число не названо/);
+    assert.strictEqual(rnd(4, { big: true }), 10, "the variant in a smaller group: the deck as in a normal game (p. 28)"); assert.ok(!/ровно \*18\*/.test(ph(4, 1, { big: true })));
+    assert.match(by(2, "hand").text, /по \*4\* карты/); assert.match(by(5, "hand").text, /по \*3\* карты/);
+    for (const n of [2, 3, 8]) assert.match(ph(n, 1), /ровно \*18\* карт/);
+  });
+  t("hotstreak p.14: roles, the track, 6 stacks on «Норм», $10 each; the 9+ variant — paper instead", () => {
+    assert.deepStrictEqual([...steps(4).map(s => s.id)], ["roles", "track", "tickets", "deck", "hand"]);
+    for (const r of ["Букмекер", "Дилер", "Распорядитель"]) assert.ok(by(4, "roles").text.includes(r), r);
+    assert.match(by(4, "tickets").text, /\*6\* стопок стороной \*«Норм»\* вверх/); assert.match(by(4, "tickets").text, /\*\$10\*/);
+    assert.match(by(12, "tickets").text, /\*листок\*/); assert.ok(!/\$10/.test(by(12, "tickets").text));
+    assert.match(by(4, "track").text, /\*4\* маскотов на старт/);
+  });
+  t("hotstreak p.16, p.27, p.28: the snake draft; 2 players draft 3; the double ticket only in the 3rd race", () => {
+    assert.match(ph(4, 1), /билет самый \*невезучий\*/); assert.match(ph(4, 2), /\*следующий\* по часовой/);
+    assert.match(ph(4, 1), /\*в обратную\* сторону/); assert.match(ph(4, 1), /\*«Норм»\* или \*«Риск»\*/);
+    assert.match(ph(2, 1), /\*3\* билета, по очереди 1-2-2-1-1-2/); assert.match(ph(2, 2), /\*не тот\*, кто начинал/);
+    assert.match(ph(4, 1), /\*1 карту\* из руки/); assert.match(ph(2, 1), /\*2 карты\* из руки/);
+    for (const n of [2, 4]) { assert.ok(!/вдвое/.test(ph(n, 1) + ph(n, 2))); assert.match(ph(n, 3), /платит \*вдвое\*.*проигрыш тоже вдвое/); }
+    assert.match(ph(12, 3), /Обведи одну из двух ставок/); assert.match(ph(12, 3), /Обведённая ставка платит \*вдвое\*/);
+  });
+  t("hotstreak p.24–26, p.29: the end of a race, payouts; 9+ — the four pots and 3 cards swapped before races 2 and 3", () => {
+    assert.match(ph(4, 1), /когда \*3\* маскота финишировали или выбыли/); assert.match(ph(4, 1), /следующей \*белой\* линии — кто под ней, выбывает/);
+    assert.match(ph(4, 1), /снова сбрасывает \*3\*/); assert.match(ph(4, 1), /на \*высшее\* свободное место.*на \*низшее\*/);
+    assert.match(ph(4, 1), /за \*4-е\* место — \$0/); assert.match(ph(4, 1), /останется \*\$0\*/);
+    const big = ph(10, 2);
+    assert.match(big, /\*\$18\*, 2-е — \*\$12\*, 3-е — \*\$6\*, побочная ставка — \*\$18\*/); assert.match(big, /округлением \*вниз\*/);
+    assert.match(after(10, 1), /заменяет \*3\* случайные карты/); assert.ok(!/заменяет/.test(after(10, 3) + ph(10, 2) + after(4, 1)), "the swap is before the bets of races 2 and 3"); assert.ok(!/из руки/.test(big));
+    assert.match(after(4, 1), /каждому \*1 карту\* — в руке снова 3/); assert.match(after(2, 2), /\*2 карты\* — в руке снова 4/);
+    assert.match(after(4, 3), /Сосчитайте свои деньги/); assert.match(after(10, 3), /Сложите свои выигрыши/);
+    assert.ok(!/«Норм»/.test(after(10, 1)), "no tickets in the 9+ variant");
+  });
+  t("hotstreak p.27: the money is written once — the most wins, equal money is a draw (the book has no tie-breaker)", () => {
+    const players = ["a", "b", "c"], sheet = v => ({ cards: [], money: v });
+    let r = BH.endWinners(G, players, { a: sheet("34"), b: sheet("51"), c: sheet("0") });
+    assert.deepStrictEqual([...r.winners], ["b"]); assert.strictEqual(r.totals.b, 51);
+    r = BH.endWinners(G, players, { a: sheet("40"), b: sheet("40"), c: sheet("12") });
+    assert.deepStrictEqual([...r.winners], ["a", "b"]); assert.strictEqual(r.tieOpen.length, 0);
+    assert.deepStrictEqual([...BH.endProblems(G, sheet("-3"))], ["Деньги — целое число от 0 до 999"]);
+    assert.ok(G.faq.some(f => /поровну/.test(f.q) && f.src === "disputed"));
+  });
+  t("hotstreak: rules, groups, questions refer to real sections; every picture is in the repository and in the offline cache", () => {
+    const ids = new Set(G.rules.map(r => r.id));
+    for (const gr of G.ruleGroups) for (const id of gr.ids) assert.ok(ids.has(id), "group " + id);
+    for (const gr of G.faqGroups) for (const id of gr.refs) assert.ok(ids.has(id), "faq group " + id);
+    for (const f of G.faq) { assert.ok(ids.has(f.ref), "faq ref " + f.ref); if (f.src) assert.ok(BH.FAQ_SRC[f.src], "faq src " + f.src); }
+    const grouped = new Set(G.ruleGroups.flatMap(gr => gr.ids)); for (const id of ids) assert.ok(grouped.has(id), "rule in a group: " + id);
+    assert.ok(G.rules.every(r => r.page >= 14 && r.page <= 31));
+    const html = [G.cover, G.rounds.art, ...steps(4).map(s => s.art), ...steps(12).map(s => s.art), ...G.rules.map(r => r.art || "")].join("");
+    const srcs = [...new Set([...html.matchAll(/src="([^"]+)"/g)].map(m => m[1]))], sw = fs.readFileSync(path.join(__dirname, "../app/sw.js"), "utf8");
+    assert.strictEqual(srcs.length, 18);
+    for (const src of srcs) { assert.ok(fs.existsSync(path.join(__dirname, "../app", src)), src); assert.ok(sw.includes(`"${src.split("/").pop().replace(".webp", "")}"`), "sw: " + src); }
+  });
+  t("hotstreak: all texts are neutral — no «-л» forms", () => {
+    const texts = [2, 4, 12].flatMap(n => [1, 2, 3].flatMap(r => [ph(n, r), after(n, r)]).concat(steps(n).map(x => x.text + " " + x.title)))
+      .concat(G.endScore.steps, G.first.hint, G.tagline, ...G.faq.map(f => f.q + " " + f.a), ...G.rules.map(r => r.body.replace(/<[^>]+>/g, " ")))
+      .join(" ").replace(/[Кк]то [а-яё]+/g, "");
+    const bad = texts.match(/[А-Яа-яё]+(?:ил|ыл|ал|ял|ёл|ел|ла|ло)(?![А-Яа-яё])/g) || [];
+    const ok = /^(стол|пол|сразу|было|правил|пьедестала?|сначала|числ[оа])$/i;
+    assert.strictEqual(JSON.stringify([...new Set(bad.filter(w => !ok.test(w)))]), JSON.stringify([]));
+  });
+  console.log(`hotstreak: ${passed - before} passed${process.exitCode ? ", some FAILED" : ""}`);
 }
 {
   // the statistics charts (js/charts.js): the numbers behind the pictures

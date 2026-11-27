@@ -279,7 +279,7 @@
     const fin = finishedSessions();
     return BH.games.map(g => ({ g, n: fin.filter(s => s.gameId === g.id).length })).sort((a, b) => b.n - a.n || a.g.name.localeCompare(b.g.name, "ru"));
   }
-  const squareCovers = new Set(["quoridor","dragons","cheese","bigwalk","jackal","thegang","toybattle","ribbit","dobble","faraway","flip7","flip7v","zoo","goldfever","coconuts","crokinole"]);
+  const squareCovers = new Set(["hotstreak","quoridor","dragons","cheese","bigwalk","jackal","thegang","toybattle","ribbit","dobble","faraway","flip7","flip7v","zoo","goldfever","coconuts","crokinole"]);
   const coverOf = (g, cls) => {
     if (g && squareCovers.has(g.id)) {
       return `<span class="cover has-img ${cls || ""}"><img src="games/covers/${esc(g.id)}.webp" alt="" width="512" height="512" decoding="async"></span>`;
@@ -319,7 +319,7 @@
     let right = "";
     if (s.status === "setup") right = '<span class="badge warn">подготовка</span>';
     else if (s.status === "first") right = '<span class="badge warn">кто начинает</span>';
-    else if (s.status === "playing") { const eg = BH.game(s.gameId), last = BH.isEndScored(eg) && eg.rounds.count; right = `<span class="badge accent">${BH.isRace(eg) || BH.isOne(eg, BH.ctxOf(s)) ? "идёт игра" : last && s.rounds.length >= last ? "подсчёт славы" : (BH.isCoop(eg) ? "ограбление " : BH.roundW(eg).lc + " ") + (s.rounds.length + 1)}</span>`; }
+    else if (s.status === "playing") { const eg = BH.game(s.gameId), last = BH.isEndScored(eg) && eg.rounds.count; right = `<span class="badge accent">${BH.isRace(eg) || BH.isOne(eg, BH.ctxOf(s)) ? "идёт игра" : last && s.rounds.length >= last ? BH.endW(eg).badge : (BH.isCoop(eg) ? "ограбление " : BH.roundW(eg).lc + " ") + (s.rounds.length + 1)}</span>`; }
     return `<a class="item sline" href="#/s/${s.id}">
       ${coverOf(g, "mini")}
       <div class="t"><b>${esc(g ? g.name : s.gameId)}</b>${meta([[IC.cal, rowDate(s.created), BH.fmtDate(s.created)], place && !(o && o.noPlace) && [IC.pin, esc(place.name), place.name]], "plain")}</div>
@@ -1009,18 +1009,19 @@
      the fame is written in after the last round, as on the score pad */
   function viewPlayEnd(s, g) {
     const last = g.rounds.count || 8, r = s.rounds.length, over = r >= last, cur = Math.min(r + 1, last), ctx = BH.ctxOf(s);
+    const W = BH.roundW(g), E = BH.endW(g);
     const phases = g.rounds.phases ? g.rounds.phases(ctx, cur, last) : [];
     const round = `<div class="status-row">
-        <div class="stat-tile"><span class="label">Раунд</span><span class="round-no">${over ? last : cur}<small> из ${last}</small></span></div>
+        <div class="stat-tile"><span class="label">${esc(W.one)}</span><span class="round-no">${over ? last : cur}<small> из ${last}</small></span></div>
         <div class="stat-tile at-table"><div class="leader-t"><span class="label">За столом</span><span class="faces">${s.players.map(id => BH.avatar(BH.player(id) || { name: "?", color: "#888" }, "sm")).join("")}</span></div></div>
       </div>
-      ${over ? `<section class="note good end-ready">${I.check}<span>Все ${last} раундов сыграны. Переверните свои Регионы и считайте славу — с последней карты к первой.</span></section>`
-        : `<section class="panel"><div class="sec-h"><h2>Раунд ${cur}: что делать</h2></div><ol class="phase-list">${phases.map(p => `<li><b>${esc(p.title)}</b>${stepsHTML(p.steps || [p.text], g.id)}</li>`).join("")}</ol>${afterHTML(afterOf(g, ctx, cur, last), g.id)}</section>`}`;
-    return playShell(s, g, [{ id: "round", label: "Раунд", html: round }, rulesTab(s, g)], `<div class="game-bar">
+      ${over ? `<section class="note good end-ready">${I.check}<span>${esc(E.allPlayed(last))}. ${esc(E.ready)}</span></section>`
+        : `<section class="panel"><div class="sec-h"><h2>${esc(W.one)} ${cur}: что делать</h2></div><ol class="phase-list">${phases.map(p => `<li><b>${esc(p.title)}</b>${stepsHTML(p.steps || [p.text], g.id)}</li>`).join("")}</ol>${afterHTML(afterOf(g, ctx, cur, last), g.id)}</section>`}`;
+    return playShell(s, g, [{ id: "round", label: W.one, html: round }, rulesTab(s, g)], `<div class="game-bar">
         ${askBtn()}
-        ${over ? `<button class="btn primary big" data-act="end-open">${I.check}<span class="ell">Подсчёт славы</span></button>`
-          : `<button class="btn primary big" data-act="round-done">${I.check}<span class="ell">Раунд ${cur} сыгран</span></button>`}
-        ${r ? `<button class="btn big" data-act="undo-round" aria-label="Вернуться к раунду ${r}" title="Вернуться к раунду ${r}">${I.undo}</button>` : ""}
+        ${over ? `<button class="btn primary big" data-act="end-open">${I.check}<span class="ell">${esc(E.title)}</span></button>`
+          : `<button class="btn primary big" data-act="round-done">${I.check}<span class="ell">${esc(E.button ? E.button(cur) : `${W.one} ${cur} ${E.played}`)}</span></button>`}
+        ${r ? `<button class="btn big" data-act="undo-round" aria-label="Вернуться к ${W.dat[0]} ${r}" title="Вернуться к ${W.dat[0]} ${r}">${I.undo}</button>` : ""}
       </div>`);
   }
 
@@ -1261,17 +1262,18 @@
   // the result of a game scored at the end: the score pad — each card from the last to the first, the extra rows, the total
   function endPadHTML(s, g) {
     const e = g.endScore, fd = s.finalDetail;
-    if (!e || !fd) return "";
+    // one number per player (Hot Streak: the money) — the result tab already shows it
+    if (!e || !fd || (!e.rows && (e.extra || []).length < 2)) return "";
     const cell = v => (v === null || v === undefined ? "—" : v);
     const tot = BH.totals(s), anyTie = s.players.some(id => fd[id] && fd[id].tie !== null && fd[id].tie !== undefined);
     const head = s.players.map(id => { const p = BH.player(id) || { name: "?", color: "#888" }; return `<th title="${esc(p.name)}">${BH.avatar(p, "sm")}<span class="hist-n">${esc(p.name)}</span></th>`; }).join("");
     const rows = Array.from({ length: e.rows }, (_, j) => e.rows - j).map(k => `<tr><td>${esc(e.rowLabel(k))}</td>${s.players.map(id => `<td>${cell(fd[id] && fd[id].cards ? fd[id].cards[k - 1] : null)}</td>`).join("")}</tr>`).join("")
       + (e.extra || []).map(x => `<tr><td>${esc(x.label)}</td>${s.players.map(id => `<td>${cell(fd[id] && fd[id][x.id])}</td>`).join("")}</tr>`).join("");
     const winTie = s.winners.length === 1 && s.players.filter(id => tot[id] === tot[s.winners[0]]).length > 1;
-    return `<section class="panel"><h2 style="margin-bottom:6px">Блокнот</h2><div class="scroll-x"><table class="hist pad">
+    return `<section class="panel"><h2 style="margin-bottom:6px">${esc(BH.endW(g).pad)}</h2><div class="scroll-x"><table class="hist pad">
         <thead><tr><th></th>${head}</tr></thead><tbody>${rows}</tbody>
         <tfoot><tr><th>Итого</th>${s.players.map(id => `<th>${tot[id]}</th>`).join("")}</tr>${anyTie && e.tie ? `<tr><td class="small muted">${esc(e.tie.label)}</td>${s.players.map(id => `<td class="small">${cell(fd[id] && fd[id].tie)}</td>`).join("")}</tr>` : ""}</tfoot>
-      </table></div><p class="tiny muted" style="margin-top:6px">Регионы — в порядке подсчёта: с последней сыгранной карты к первой.${winTie && e.tie ? ` При равной славе побеждает тот, у кого меньше число в строке «${esc(e.tie.label)}».` : ""}</p></section>`;
+      </table></div>${BH.endW(g).padNote ? `<p class="tiny muted" style="margin-top:6px">${esc(BH.endW(g).padNote)}${winTie && e.tie ? ` При равной славе побеждает тот, у кого меньше число в строке «${esc(e.tie.label)}».` : ""}</p>` : ""}</section>`;
   }
 
   function viewDoneCoop(s, g) {
@@ -1791,7 +1793,7 @@
     // no player names: they do not help the answer and need not leave the phone
     const g = BH.game(s.gameId);
     if (BH.isRace(g)) return `идёт игра, игроков ${s.players.length}`;
-    if (BH.isEndScored(g)) { const last = g.rounds.count || 8; return `раунд ${Math.min(s.rounds.length + 1, last)} из ${last}, игроков ${s.players.length}, слава считается в конце`; }
+    if (BH.isEndScored(g)) { const last = g.rounds.count || 8; return `${BH.roundW(g).lc} ${Math.min(s.rounds.length + 1, last)} из ${last}, игроков ${s.players.length}, ${BH.endW(g).voice}`; }
     const tot = Object.values(BH.totals(s)), best = tot.length ? Math.max(...tot) : 0;
     if (BH.isOne(g, BH.ctxOf(s))) return `${g.scoring.one.summary || "одна мини-игра"}, игроков ${s.players.length}`;
     return BH.isPick(g) ? `мини-игра ${s.rounds.length + 1}, игроков ${s.players.length}, больше всех побед ${best}` : `раунд ${s.rounds.length + 1}, игроков ${s.players.length}, лучший счёт ${best}`;
@@ -2096,7 +2098,7 @@
     for (const id of s.players) {
       const d = sheet.entries[id], f = BH.endFilled(g, d), probs = BH.endProblems(g, d, endOpts(s, g));
       const t = overlayRoot.querySelector(`[data-tot="${id}"]`); if (t) { t.textContent = res.totals[id]; t.classList.toggle("lead", res.winners.includes(id) && f > 0); }
-      const fl = overlayRoot.querySelector(`[data-fill="${id}"]`); if (fl) fl.textContent = f < cells ? `вписано ${f} из ${cells}` : "всё вписано";
+      const fl = overlayRoot.querySelector(`[data-fill="${id}"]`); if (fl) fl.textContent = cells < 2 ? "" : f < cells ? `вписано ${f} из ${cells}` : "всё вписано";
       const pr = overlayRoot.querySelector(`[data-probs="${id}"]`); if (pr) { pr.hidden = !probs.length; pr.innerHTML = probs.map(esc).join("<br>"); }
     }
     const tn = overlayRoot.querySelector("#end-tie");
@@ -2104,8 +2106,8 @@
       const any = s.players.some(id => BH.endFilled(g, sheet.entries[id]));
       tn.hidden = !any || !(res.tieOpen.length || res.byTie);
       tn.className = "note " + (res.byTie ? "good" : "");
-      tn.textContent = res.tieOpen.length ? `Славы поровну у игроков: ${res.winners.map(pname).join(", ")}. Впишите им «${e.tie.label}» — побеждает меньшее число.`
-        : res.byTie ? `Славы поровну — побеждает ${res.winners.map(pname).join(", ")}: в строке «${e.tie.label}» число меньше.` : "";
+      tn.textContent = res.tieOpen.length ? `${BH.endW(g).even} у игроков: ${res.winners.map(pname).join(", ")}. Впишите им «${e.tie.label}» — побеждает меньшее число.`
+        : res.byTie ? `${BH.endW(g).even} — побеждает ${res.winners.map(pname).join(", ")}: в строке «${e.tie.label}» число меньше.` : "";
     }
   }
   function endSheetHTML() {
@@ -2120,13 +2122,13 @@
         + (e.tie ? `<div class="end-tie-row">${row(e.tie.label, e.tie.hint, "tie", d.tie)}</div>` : "");
       return `<div class="entry ${open ? "open" : ""}" data-entry="${id}">
         <button type="button" class="end-head" data-act="end-entry" data-p="${id}" aria-expanded="${open}">${BH.avatar(p, "sm")}<span class="nm">${esc(p.name)}</span><span class="end-tot num${res.winners.includes(id) && f ? " lead" : ""}" data-tot="${id}">${res.totals[id]}</span></button>
-        <span class="small muted" data-fill="${id}">${f < cells ? `вписано ${f} из ${cells}` : "всё вписано"}</span>
+        <span class="small muted" data-fill="${id}"${cells < 2 ? " hidden" : ""}>${f < cells ? `вписано ${f} из ${cells}` : "всё вписано"}</span>
         <div class="note small" data-probs="${id}" ${probs.length ? "" : "hidden"}>${probs.map(esc).join("<br>")}</div>
         ${open ? `<div class="end-rows">${rows}</div>${i < s.players.length - 1 ? `<div class="row" style="justify-content:flex-end"><button type="button" class="btn sm" data-act="end-entry" data-p="${s.players[i + 1]}">Дальше: ${esc(pname(s.players[i + 1]))}</button></div>` : ""}` : ""}
       </div>`;
     }).join("");
     return `<div class="overlay" data-act="overlay-bg"><div class="sheet" role="dialog" aria-modal="true" aria-labelledby="sheet-h">
-      <div class="sheet-head"><div class="sheet-t"><h2 id="sheet-h">Подсчёт славы</h2></div><button class="icon-btn" data-act="close-sheet" aria-label="Закрыть">${I.x}</button></div>
+      <div class="sheet-head"><div class="sheet-t"><h2 id="sheet-h">${esc(BH.endW(g).title)}</h2></div><button class="icon-btn" data-act="close-sheet" aria-label="Закрыть">${I.x}</button></div>
       <div class="sheet-body">
         <details class="note info small end-how"${s.players.some(id => BH.endFilled(g, sheet.entries[id])) ? "" : " open"}><summary>Как считать</summary><ol>${e.steps.map(t => `<li>${fmtStep(t, g.id)}</li>`).join("")}</ol></details>
         ${body}
@@ -2140,7 +2142,7 @@
     const probs = s.players.flatMap(id => BH.endProblems(g, sheet.entries[id], endOpts(s, g)).map(t => pname(id) + ": " + t));
     if (probs.length) { BH.toast("Исправьте: " + probs[0]); return; }
     const cells = e.rows + (e.extra || []).length, scored = s.players.filter(id => BH.endFilled(g, sheet.entries[id]) > 0);
-    if (!scored.length) { BH.toast("Впишите славу хотя бы одного игрока"); return; }
+    if (!scored.length) { BH.toast(`Впишите ${BH.endW(g).acc} хотя бы одного игрока`); return; }
     const res = BH.endWinners(g, scored, sheet.entries);
     const commit = winners => {
       const c = fresh(s), n = v => (v === "" || v === null || v === undefined ? null : Number(v));
@@ -2156,14 +2158,14 @@
     };
     const tieStep = () => {
       if (!res.tieOpen.length) return commit(res.winners);
-      openDialog({ title: "Слава равная", text: `Поровну у: ${res.winners.map(pname).join(", ")}. ${g.scoring.tieNote || ""}`, buttons: [
+      openDialog({ title: BH.endW(g).equal, text: `Поровну у: ${res.winners.map(pname).join(", ")}. ${g.scoring.tieNote || ""}`, buttons: [
         { label: "Вписать: " + e.tie.label.toLowerCase(), primary: true, run: () => { dialog = null; sheet.open = res.tieOpen[0]; renderOverlay(); } },
         { label: "Записать ничью", run: () => commit(res.winners) }] });
     };
     const empty = s.players.filter(id => BH.endFilled(g, sheet.entries[id]) < cells);
     if (empty.length) {
       const none = s.players.filter(id => !BH.endFilled(g, sheet.entries[id]));
-      openDialog({ title: "Не всё вписано", text: `Пустые клетки остались у игроков: ${empty.map(pname).join(", ")}. Пустая клетка считается нулём.${none.length ? ` Ничего не вписано: ${none.map(pname).join(", ")} — в статистике ${none.length > 1 ? "эти игроки останутся" : "этот игрок останется"} без очков.` : ""}`, buttons: [
+      openDialog({ title: "Не всё вписано", text: cells < 2 ? `Ничего не вписано: ${none.map(pname).join(", ")} — в статистике ${none.length > 1 ? "эти игроки останутся" : "этот игрок останется"} без итога.` : `Пустые клетки остались у игроков: ${empty.map(pname).join(", ")}. Пустая клетка считается нулём.${none.length ? ` Ничего не вписано: ${none.map(pname).join(", ")} — в статистике ${none.length > 1 ? "эти игроки останутся" : "этот игрок останется"} без очков.` : ""}`, buttons: [
         { label: "Записать как есть", primary: true, run: () => { dialog = null; tieStep(); } },
         { label: "Дописать", run: () => { dialog = null; sheet.open = empty[0]; renderOverlay(); } }] });
       return;
@@ -2874,7 +2876,8 @@
         s.rounds.push({ at: Date.now(), leader: s.players[0], scores: Object.fromEntries(s.players.map(id => [id, 0])), flags: {}, detail: {} });
         BH.saveNow(); quiet(); render(); window.scrollTo(0, 0);
         const n = s.rounds.length;
-        BH.toast(n < last ? `Раунд ${n} сыгран` : `Все ${last} раундов сыграны — считайте славу`, { label: "Отменить", run: () => {
+        const rg = BH.game(s.gameId), RW = BH.roundW(rg), EW = BH.endW(rg);
+        BH.toast(n < last ? `${RW.one} ${n} ${EW.played}` : `${EW.allPlayed(last)} — ${EW.go}`, { label: "Отменить", run: () => {
           const c = BH.session(s.id); if (!c || c.status !== "playing" || sheet || dialog || c.rounds.length !== n) return;
           c.rounds.pop(); BH.saveNow(); render();
         } });
@@ -2884,7 +2887,7 @@
       case "end-entry": sheet.open = sheet.open === el.dataset.p ? null : el.dataset.p; renderOverlay(); { const n = overlayRoot.querySelector(`[data-entry="${el.dataset.p}"]`); if (n) n.scrollIntoView({ block: "nearest" }); } break;
       case "end-save": saveEnd(); break;
       case "undo-round": { const coop = BH.isCoop(BH.game(s.gameId)), word = coop ? "ограбление" : BH.roundW(BH.game(s.gameId)).acc;
-        openDialog({ title: `Отменить ${word} ${s.rounds.length}?`, text: coop ? "Счётчик вернётся к ограблению " + s.rounds.length + ", карты — как были." : BH.isEndScored(BH.game(s.gameId)) ? "Счётчик вернётся к раунду " + s.rounds.length + "." : BH.roundW(BH.game(s.gameId)).undo, buttons: [
+        openDialog({ title: `Отменить ${word} ${s.rounds.length}?`, text: coop ? "Счётчик вернётся к ограблению " + s.rounds.length + ", карты — как были." : BH.isEndScored(BH.game(s.gameId)) ? "Счётчик вернётся к " + BH.roundW(BH.game(s.gameId)).dat[0] + " " + s.rounds.length + "." : BH.roundW(BH.game(s.gameId)).undo, buttons: [
         { label: `Отменить ${word}`, danger: true, run: () => { const c = fresh(s), last = c.rounds.pop(); if (last && last.coop) c.coop = last.coop; BH.saveNow(); dialog = null; afterRoundChange(c, false); } }, { label: "Оставить", run: closeDialog }] }); break; }
       case "finish-menu": {
         if (BH.isRace(BH.game(s.gameId))) { openRaceEnd(s); break; }
@@ -2906,9 +2909,9 @@
           break;
         }
         if (BH.isEndScored(BH.game(s.gameId))) {
-          const last = BH.game(s.gameId).rounds.count || 8;
-          openDialog({ title: "Завершить партию?", text: s.rounds.length >= last ? "Все раунды сыграны — впишите славу каждого игрока." : `Сыграно ${s.rounds.length} из ${last} раундов. По правилам славу считают после ${last}-го раунда, но прерванную партию тоже можно записать.`, buttons: [
-            { label: "Подсчёт славы", primary: true, run: () => { dialog = null; openEndSheet(s); } },
+          const last = BH.game(s.gameId).rounds.count || 8, EW = BH.endW(BH.game(s.gameId));
+          openDialog({ title: "Завершить партию?", text: s.rounds.length >= last ? `${EW.allPlayed(last)} — впишите ${EW.acc} каждого игрока.` : EW.early(s.rounds.length, last), buttons: [
+            { label: EW.title, primary: true, run: () => { dialog = null; openEndSheet(s); } },
             { label: "Удалить партию", danger: true, run: () => confirmDelete(s) },
             { label: "Продолжить игру", run: closeDialog }] });
           break;
@@ -3298,7 +3301,7 @@
   window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", applyTheme);
 
   /* ---------- start ---------- */
-  BH.version = "0.44.1";
+  BH.version = "0.45.0";
   applyTheme();
   // reloaded while a sheet was open: step off its history entry; a fresh start has nothing before it
   if (history.state && history.state.ov) history.back();

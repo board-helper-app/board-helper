@@ -195,6 +195,7 @@ input[type="datetime-local"].input{min-height:48px}
 .art:has(.flip7-plate){background:#fff8df}
 .art:has(.dragons-plate){background:#D6EEFB}
 .art:has(.quoridor-plate){background:#F3EBDD}
+.art:has(.hotstreak-plate){background:#F4F1E4}
 .art .flip7-plate{height:100%;min-height:0;object-fit:contain}
 .zoomed .art .flip7-plate{height:auto!important}
 .rule-img img.flip7-plate{max-width:754px}

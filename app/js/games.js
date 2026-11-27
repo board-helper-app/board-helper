@@ -160,6 +160,12 @@
   };
   // a player's score counts only where it was kept: rounds were played, or it was written in afterwards
   BH.isEndScored = g => !!(g && g.scoring && g.scoring.type === "end");
+  // the words of a game scored at the end: Faraway counts fame after 8 rounds, Hot Streak — money after 3 races
+  const END_W = { title: "Подсчёт славы", acc: "славу", even: "Славы поровну", equal: "Слава равная", badge: "подсчёт славы", pad: "Блокнот",
+    ready: "Переверните свои Регионы и считайте славу — с последней карты к первой.", padNote: "Регионы — в порядке подсчёта: с последней сыгранной карты к первой.",
+    voice: "слава считается в конце", go: "считайте славу", played: "сыгран", button: null, allPlayed: n => `Все ${n} раундов сыграны`,
+    early: (n, last) => `Сыграно ${n} из ${last} раундов. По правилам славу считают после ${last}-го раунда, но прерванную партию тоже можно записать.` };
+  BH.endW = g => Object.assign({}, END_W, (g && g.endScore && g.endScore.word) || {});
   // a cooperative game: the rounds are heists (ok or not), nobody has a score; the team wins or loses together
   BH.isCoop = g => !!(g && g.scoring && g.scoring.type === "coop");
   // a race without rounds or points (Coconuts): the first to build something wins at once; otherwise a count decides —
@@ -409,8 +415,8 @@
   BH.endProblems = (g, d, o) => {
     const e = g.endScore, out = []; if (!e || !d) return out;
     const bad = v => { const n = intOrNull(v); return n !== null && (!Number.isInteger(n) || n < 0 || n > e.max); };
-    (d.cards || []).slice(0, e.rows).forEach((v, i) => { if (bad(v)) out.push(`${e.rowLabel(i + 1)} — слава целым числом от 0 до ${e.max}`); });
-    for (const x of e.extra || []) if (bad(d[x.id])) out.push(`${x.label} — слава целым числом от 0 до ${e.max}`);
+    (d.cards || []).slice(0, e.rows).forEach((v, i) => { if (bad(v)) out.push(`${e.rowLabel(i + 1)} — целое число от 0 до ${e.max}`); });
+    for (const x of e.extra || []) if (bad(d[x.id])) out.push(`${x.label} — целое число от 0 до ${e.max}`);
     const t = intOrNull(d.tie);
     const tmin = o && o.partial ? 1 : e.tie && e.tie.min, tmax = e.tie && (o && o.partial && e.tie.partialMax ? e.tie.partialMax : e.tie.max);
     if (e.tie && t !== null && (!Number.isInteger(t) || t < tmin || t > tmax)) out.push(`«${e.tie.label}» — число от ${tmin} до ${tmax}`);
