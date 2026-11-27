@@ -278,7 +278,13 @@
     const fin = finishedSessions();
     return BH.games.map(g => ({ g, n: fin.filter(s => s.gameId === g.id).length })).sort((a, b) => b.n - a.n || a.g.name.localeCompare(b.g.name, "ru"));
   }
-  const coverOf = (g, cls) => `<span class="cover ${cls || ""}"${g ? BH.assets.cover(g) : ""}>${(g && g.cover) || ""}</span>`;
+  const squareCovers = new Set(["dragons","cheese","bigwalk","jackal","thegang","toybattle","ribbit","dobble","faraway","flip7","flip7v","zoo","goldfever","coconuts","crokinole"]);
+  const coverOf = (g, cls) => {
+    if (g && squareCovers.has(g.id)) {
+      return `<span class="cover has-img ${cls || ""}"><img src="games/covers/${esc(g.id)}.webp" alt="" width="512" height="512" decoding="async"></span>`;
+    }
+    return `<span class="cover ${cls || ""}"${g ? BH.assets.cover(g) : ""}>${(g && g.cover) || ""}</span>`;
+  };
   const playersRange = g => (g.players.min === g.players.max ? g.players.min : g.players.min + "–" + g.players.max) + " " + BH.plural(g.players.max, "игрок", "игрока", "игроков");
   const gameSearchName = g => esc([g.name, g.altName].filter(Boolean).join(" ").toLowerCase().replace(/ё/g, "е"));
 
@@ -3277,7 +3283,7 @@
   window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", applyTheme);
 
   /* ---------- start ---------- */
-  BH.version = "0.42.0";
+  BH.version = "0.42.1";
   applyTheme();
   // reloaded while a sheet was open: step off its history entry; a fresh start has nothing before it
   if (history.state && history.state.ov) history.back();
