@@ -1,338 +1,515 @@
-// Our own diagrams for «Вперёд, маскот!» (Hot Streak): the track, tickets, cards and the podium, drawn top-down
-// in the colours of the box (turf greens, podium yellow, the four mascots' colours). Layout follows quoridor-compose.mjs:
-// a title at the top left, the drawing, a caption bar at the bottom.
-// Run: node scripts/assets/hotstreak-compose.mjs [name…]
-import fs from "node:fs";
-import path from "node:path";
-import { fileURLToPath } from "node:url";
-import { createCanvas, GlobalFonts } from "@napi-rs/canvas";
+// Diagrams for «Вперёд, маскот!». Run with optional scene names to render a subset.
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { createCanvas, GlobalFonts, Path2D } from '@napi-rs/canvas';
 
-const root = fileURLToPath(new URL("../../", import.meta.url));
-// each subset under its own family name: one family with two files keeps only one of them (digits come from latin)
-for (const [w, fam] of [["600", "Onest"], ["700", "OnestB"]]) for (const [sub, k] of [["latin", "L"], ["cyrillic", "C"]])
-  GlobalFonts.registerFromPath(`${root}/node_modules/@fontsource/onest/files/onest-${sub}-${w}-normal.woff2`, fam + k);
-const font = (size, bold) => `${size}px ${bold ? "OnestBL, OnestBC" : "OnestL, OnestC"}`;
+const repo = fileURLToPath(new URL('../../', import.meta.url));
+const W = 768;
+const H = 512;
+const cream = '#fff3d3';
+const ink = '#24231f';
+const yellow = '#ffd431';
+const orange = '#e55429';
+const pine = '#1c542f';
+const white = '#fff8e6';
+const red = '#9c2944';
+const blue = '#264684';
+const turf = ['#34733c', '#4a863a'];
+const teams = [
+  { color: '#f1b934', shade: '#6d2618', symbol: '◆', name: 'Мамаша' },
+  { color: '#406ac2', shade: '#162d52', symbol: '●', name: 'Повеса' },
+  { color: '#ff7359', shade: '#871f28', symbol: '▲', name: 'Хёрли' },
+  { color: '#ca4b9d', shade: '#62214d', symbol: '■', name: 'Индюк' },
+];
 
-const W = 768, H = 512;
-const C = {
-  paper: "#F4F1E4", frame: "#B9C2A0", ink: "#24301F", muted: "#5E6B55", accent: "#D94F2B", bar: "#E6EBD3",
-  turfA: "#3F8A34", turfB: "#4F9E3E", line: "#F4F7EC", star: "#CFE6C3", yellow: "#F6C925", yellowDark: "#B98F0C",
-  cardBack: "#F2C230", good: "#2F8F4E", bad: "#C0392B", money: "#E9C46A", moneyEdge: "#A57F25", paperSheet: "#FFFDF6",
-};
-// the four mascots: Gobbler the bear, Hurley the bun banger, Dangle the fish, Mum the queen
-const M = {
-  bear: { main: "#E8622C", dark: "#7A2A6E", light: "#F6A06E" },
-  dog: { main: "#EE8B78", dark: "#C2372A", light: "#F7C9A8" },
-  fish: { main: "#2F5BA8", dark: "#1B3567", light: "#8FB0E8" },
-  queen: { main: "#F3B9B0", dark: "#8E2337", light: "#F6D36B" },
-};
-const ORDER = ["queen", "fish", "dog", "bear"];
-
-function rr(ctx, x, y, w, h, r, fill, stroke, lw = 2) {
-  ctx.beginPath(); ctx.roundRect(x, y, w, h, r);
-  if (fill) { ctx.fillStyle = fill; ctx.fill(); }
-  if (stroke) { ctx.strokeStyle = stroke; ctx.lineWidth = lw; ctx.stroke(); }
-}
-function circle(ctx, x, y, r, fill, stroke, lw = 2) {
-  ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2);
-  if (fill) { ctx.fillStyle = fill; ctx.fill(); }
-  if (stroke) { ctx.strokeStyle = stroke; ctx.lineWidth = lw; ctx.stroke(); }
-}
-function text(ctx, s, x, y, size, fill = C.ink, align = "center", bold = false) {
-  ctx.font = font(size, bold); ctx.fillStyle = fill; ctx.textAlign = align; ctx.textBaseline = "middle";
-  ctx.fillText(s, x, y);
-}
-function star(ctx, x, y, r, fill) {
-  ctx.beginPath();
-  for (let i = 0; i < 10; i++) { const a = -Math.PI / 2 + i * Math.PI / 5, k = i % 2 ? r * .45 : r; ctx.lineTo(x + Math.cos(a) * k, y + Math.sin(a) * k); }
-  ctx.closePath(); ctx.fillStyle = fill; ctx.fill();
-}
-function arrow(ctx, pts, { color = C.accent, w = 6, head = 14, dash = [] } = {}) {
-  ctx.save(); ctx.strokeStyle = color; ctx.fillStyle = color; ctx.lineWidth = w; ctx.lineCap = "round"; ctx.lineJoin = "round"; ctx.setLineDash(dash);
-  ctx.beginPath(); ctx.moveTo(...pts[0]);
-  if (pts.length === 3) ctx.quadraticCurveTo(...pts[1], ...pts[2]); else ctx.lineTo(...pts[1]);
-  ctx.stroke(); ctx.setLineDash([]);
-  const [x, y] = pts.at(-1), [px, py] = pts.at(-2), a = Math.atan2(y - py, x - px);
-  ctx.beginPath(); ctx.moveTo(x + Math.cos(a) * 3, y + Math.sin(a) * 3);
-  ctx.lineTo(x - Math.cos(a - .5) * head, y - Math.sin(a - .5) * head); ctx.lineTo(x - Math.cos(a + .5) * head, y - Math.sin(a + .5) * head);
-  ctx.closePath(); ctx.fill(); ctx.restore();
-}
-function cross(ctx, x, y, r = 16) {
-  circle(ctx, x, y, r, C.bad, "#fff", 2.5);
-  ctx.strokeStyle = "#fff"; ctx.lineWidth = 3.5; ctx.lineCap = "round"; const d = r * .38;
-  ctx.beginPath(); ctx.moveTo(x - d, y - d); ctx.lineTo(x + d, y + d); ctx.moveTo(x + d, y - d); ctx.lineTo(x - d, y + d); ctx.stroke();
-}
-function check(ctx, x, y, r = 16) {
-  circle(ctx, x, y, r, C.good, "#fff", 2.5);
-  ctx.strokeStyle = "#fff"; ctx.lineWidth = 3.5; ctx.lineCap = "round"; ctx.lineJoin = "round";
-  ctx.beginPath(); ctx.moveTo(x - r * .4, y); ctx.lineTo(x - r * .1, y + r * .32); ctx.lineTo(x + r * .45, y - r * .32); ctx.stroke();
-}
-function tag(ctx, s, x, y, { bg = C.ink, fg = "#fff", size = 20 } = {}) {
-  ctx.font = font(size, true); const w = ctx.measureText(s).width + 22, h = size + 14;
-  rr(ctx, x - w / 2, y - h / 2, w, h, h / 2, bg); text(ctx, s, x, y + 1, size, fg, "center", true);
-}
-
-/* a mascot seen from above: a round token in its colours; dir = -1 looks left (to the finish), 1 — right (turned around);
-   fallen — lying flat, darker, with a dashed outline */
-function mascot(ctx, x, y, kind, { r = 22, dir = -1, fallen = false, ghost = false } = {}) {
-  const m = M[kind];
-  ctx.save();
-  if (ghost) ctx.globalAlpha = .35;
-  circle(ctx, x + 2, y + 4, r, "#0000002E");
-  if (fallen) { ctx.translate(x, y); ctx.scale(1, .62); ctx.translate(-x, -y); }
-  circle(ctx, x, y, r, m.main, m.dark, 3);
-  if (kind === "bear") { circle(ctx, x - r * .62, y - r * .72, r * .32, m.main, m.dark, 2.5); circle(ctx, x + r * .62, y - r * .72, r * .32, m.main, m.dark, 2.5); circle(ctx, x, y + r * .25, r * .42, m.light); }
-  if (kind === "dog") { rr(ctx, x - r * .28, y - r * .85, r * .56, r * 1.7, r * .28, m.dark); ctx.strokeStyle = C.yellow; ctx.lineWidth = 3; ctx.beginPath(); for (let i = 0; i < 5; i++) ctx.lineTo(x + (i % 2 ? 5 : -5), y - r * .6 + i * r * .3); ctx.stroke(); }
-  if (kind === "fish") { ctx.strokeStyle = m.dark; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(x, y - r); ctx.quadraticCurveTo(x + r * .5, y - r * 1.5, x + r * .2, y - r * 1.55); ctx.stroke(); circle(ctx, x + r * .2, y - r * 1.55, 4.5, C.yellow); circle(ctx, x, y + r * .3, r * .42, m.light); }
-  if (kind === "queen") { ctx.fillStyle = m.light; ctx.beginPath(); ctx.moveTo(x - r * .62, y - r * .55); ctx.lineTo(x - r * .62, y - r * 1.12); ctx.lineTo(x - r * .3, y - r * .82); ctx.lineTo(x, y - r * 1.22); ctx.lineTo(x + r * .3, y - r * .82); ctx.lineTo(x + r * .62, y - r * 1.12); ctx.lineTo(x + r * .62, y - r * .55); ctx.closePath(); ctx.fill(); ctx.strokeStyle = m.dark; ctx.lineWidth = 2; ctx.stroke(); }
-  if (!fallen) {
-    // eyes look where the mascot faces
-    const ex = dir * r * .25;
-    for (const s of [-1, 1]) { circle(ctx, x + ex + s * r * .22, y - r * .12, r * .18, "#fff", "#00000040", 1); circle(ctx, x + ex + s * r * .22 + dir * 2.5, y - r * .12, r * .08, C.ink); }
-  } else {
-    ctx.setLineDash([5, 4]); circle(ctx, x, y, r + 4, null, "#fff", 2.5); ctx.setLineDash([]);
+for (const [weight, family] of [[600, 'Text'], [800, 'Display']]) {
+  for (const subset of ['latin', 'cyrillic']) {
+    GlobalFonts.registerFromPath(`${repo}/node_modules/@fontsource/onest/files/onest-${subset}-${weight}-normal.woff2`, family + subset);
   }
-  ctx.restore();
 }
 
-/* the track: lanes across, the finish line at the left; cells are columns; a `from` column hides the cells before it */
-function track(ctx, x, y, w, h, { cols = 12, lanes = 4, finish = true, stars = [], folds = [], start = false, cut = null } = {}) {
-  const lh = h / lanes, cw = w / cols;
-  rr(ctx, x - 6, y - 6, w + 12, h + 12, 10, "#2D6427");
-  for (let l = 0; l < lanes; l++) { ctx.fillStyle = l % 2 ? C.turfB : C.turfA; ctx.fillRect(x, y + l * lh, w, lh); }
-  ctx.strokeStyle = "#FFFFFF55"; ctx.lineWidth = 2;
-  for (let c = 1; c < cols; c++) for (let l = 0; l < lanes; l++) { ctx.beginPath(); ctx.moveTo(x + c * cw, y + l * lh + lh * .35); ctx.lineTo(x + c * cw, y + l * lh + lh * .65); ctx.stroke(); }
-  for (const c of folds) { ctx.strokeStyle = C.line; ctx.lineWidth = 4; ctx.beginPath(); ctx.moveTo(x + c * cw, y); ctx.lineTo(x + c * cw, y + h); ctx.stroke(); }
-  for (const [c, l] of stars) star(ctx, x + (c + .5) * cw, y + (l + .5) * lh, Math.min(cw, lh) * .3, C.star);
-  if (finish) {
-    const fx = x + cw * .5, sq = 7;
-    for (let i = 0; i * sq < h; i++) for (let j = 0; j < 2; j++) { ctx.fillStyle = (i + j) % 2 ? "#fff" : "#1d1d1d"; ctx.fillRect(fx - sq + j * sq, y + i * sq, sq, Math.min(sq, h - i * sq)); }
+function rr(c, x, y, w, h, radius, fill, stroke, lw = 2) {
+  c.beginPath();
+  c.roundRect(x, y, w, h, radius);
+  if (fill) { c.fillStyle = fill; c.fill(); }
+  if (stroke) { c.lineWidth = lw; c.strokeStyle = stroke; c.stroke(); }
+}
+function poly(c, coords, fill) {
+  c.beginPath();
+  coords.forEach(([x, y], i) => i ? c.lineTo(x, y) : c.moveTo(x, y));
+  c.closePath();
+  c.fillStyle = fill;
+  c.fill();
+}
+function disk(c, x, y, r, fill, stroke) {
+  c.beginPath();
+  c.arc(x, y, r, 0, Math.PI * 2);
+  c.fillStyle = fill;
+  c.fill();
+  if (stroke) { c.lineWidth = 3; c.strokeStyle = stroke; c.stroke(); }
+}
+function type(c, s, x, y, px, color = ink, opts = {}) {
+  const { align = 'center', light = false, max = 690 } = opts;
+  const font = light ? 'Text' : 'Display';
+  const size = value => `${value}px ${font}cyrillic, ${font}latin, Segoe UI Symbol`;
+  c.font = size(px);
+  const width = c.measureText(s).width;
+  if (width > max) c.font = size(Math.floor(px * max / width));
+  c.textAlign = align;
+  c.textBaseline = 'middle';
+  c.fillStyle = color;
+  c.fillText(s, x, y);
+}
+function line(c, pts, color, w = 5, dash = []) {
+  c.beginPath();
+  pts.forEach(([x, y], i) => i ? c.lineTo(x, y) : c.moveTo(x, y));
+  c.lineWidth = w;
+  c.lineCap = 'round';
+  c.lineJoin = 'round';
+  c.strokeStyle = color;
+  c.setLineDash(dash);
+  c.stroke();
+  c.setLineDash([]);
+}
+function arrow(c, pts, color = ink, width = 6, dashed = false) {
+  line(c, pts, color, width, dashed ? [8, 7] : []);
+  const [x, y] = pts.at(-1);
+  const [u, v] = pts.at(-2);
+  const a = Math.atan2(y - v, x - u);
+  const l = width * 2.1;
+  poly(c, [[x + Math.cos(a) * 4, y + Math.sin(a) * 4], [x - Math.cos(a - .6) * l, y - Math.sin(a - .6) * l], [x - Math.cos(a + .6) * l, y - Math.sin(a + .6) * l]], color);
+}
+function scatter(c, x, y, w, h, seed = 3, n = 26) {
+  const colors = [orange, blue, pine, red, white];
+  let s = seed;
+  const next = () => (s = (Math.imul(s, 1664525) + 1013904223) >>> 0) / 4294967296;
+  for (let i = 0; i < n; i++) {
+    c.save();
+    c.translate(x + next() * w, y + next() * h);
+    c.rotate((next() - .5) * 2.7);
+    rr(c, 0, 0, 3 + next() * 4, 7 + next() * 9, 1.5, colors[i % colors.length]);
+    c.restore();
   }
-  if (start) { ctx.strokeStyle = "#fff"; ctx.lineWidth = 3; ctx.setLineDash([8, 6]); ctx.beginPath(); ctx.moveTo(x + w - cw * 1.0, y); ctx.lineTo(x + w - cw * 1.0, y + h); ctx.stroke(); ctx.setLineDash([]); }
-  return { cell: (c, l) => [x + (c + .5) * cw, y + (l + .5) * lh], cw, lh, x, y, w, h };
 }
-
-function card(ctx, x, y, { w = 64, h = 92, kind = "fish", label = "2", back = false, start = false, green = false, rot = 0 } = {}) {
-  ctx.save(); ctx.translate(x + w / 2, y + h / 2); ctx.rotate(rot); ctx.translate(-w / 2, -h / 2);
-  rr(ctx, 2, 4, w, h, 8, "#0000002A");
+function star(c, x, y, r, paint) {
+  const pts = Array.from({ length: 10 }, (_, i) => {
+    const a = i * Math.PI / 5 - Math.PI / 2;
+    const radius = i % 2 ? r * .44 : r;
+    return [x + Math.cos(a) * radius, y + Math.sin(a) * radius];
+  });
+  poly(c, pts, paint);
+}
+function checkers(c, x, y, rows, s) {
+  for (let j = 0; j < rows; j++) for (let i = 0; i < 2; i++) {
+    c.fillStyle = (i + j) % 2 ? white : ink;
+    c.fillRect(x + i * s, y + j * s, s, s);
+  }
+}
+function ticket(c, x, y, w, h, color, label, sub, fg = ink) {
+  rr(c, x + 4, y + 5, w, h, 13, '#35221428');
+  rr(c, x, y, w, h, 13, color, ink, 2.5);
+  for (const p of [x, x + w]) disk(c, p, y + h / 2, 7, cream);
+  type(c, label, x + w / 2, y + h * (sub ? .36 : .5), Math.min(31, w / 4), fg, { max: w - 11 });
+  if (sub) type(c, sub, x + w / 2, y + h * .72, 21, fg, { max: w - 13, light: true });
+}
+function pill(c, s, x, y, w, paint = pine, fg = white) {
+  rr(c, x - w / 2, y - 18, w, 36, 18, paint);
+  type(c, s, x, y + 1, 22, fg, { max: w - 12 });
+}
+function iconCard(c, x, y, { w = 83, h = 117, fill = yellow, mark = '', back = false, frame = false, tilt = 0 } = {}) {
+  c.save();
+  c.translate(x, y);
+  c.rotate(tilt);
+  rr(c, -w / 2 + 3, -h / 2 + 5, w, h, 9, '#36271035');
+  rr(c, -w / 2, -h / 2, w, h, 9, fill, ink, 2.5);
+  if (frame) rr(c, -w / 2 + 6, -h / 2 + 6, w - 12, h - 12, 6, '', white, 3);
   if (back) {
-    rr(ctx, 0, 0, w, h, 8, C.cardBack, "#9C7A10", 2);
-    for (let i = 0; i < 4; i++) { ctx.strokeStyle = i % 2 ? "#1d1d1d" : "#fff"; ctx.lineWidth = 4; ctx.beginPath(); ctx.moveTo(6, 16 + i * 20); ctx.quadraticCurveTo(w / 2, 6 + i * 20, w - 6, 20 + i * 20); ctx.stroke(); }
+    poly(c, [[-w * .34, h * .21], [0, -h * .26], [w * .34, -h * .13], [0, h * .31]], orange);
+    line(c, [[-w * .22, h * .19], [w * .19, -h * .13]], ink, Math.max(2, w * .047));
+    disk(c, -w * .21, -h * .23, Math.max(2, w * .045), pine);
   } else {
-    const m = green ? { main: "#3E8C2F", dark: "#1F5A1A", light: "#CDE7C0" } : M[kind];
-    rr(ctx, 0, 0, w, h, 8, m.main, m.dark, start ? 5 : 2);
-    if (start) rr(ctx, 6, 6, w - 12, h - 12, 5, null, "#fff", 2.5);
-    const ink = kind === "queen" && !green ? m.dark : "#fff";
-    if (label === "*") star(ctx, w / 2, h / 2, w * .3, ink);
-    else {
-      const words = label.split(" "); let size = Math.min(30, w * .45);
-      const fits = sz => { ctx.font = font(sz, true); return words.every(wd => ctx.measureText(wd).width <= w - 10); };
-      while (size > 9 && !fits(size)) size--;
-      const lh = size * 1.15; words.forEach((wd, i) => text(ctx, wd, w / 2, h / 2 + (i - (words.length - 1) / 2) * lh, size, ink, "center", true));
+    type(c, mark, 0, 1, Math.min(40, Math.round(w * .53)), fill === blue || fill === pine ? white : ink, { max: w - 6 });
+  }
+  c.restore();
+}
+function chip(c, x, y, team, { dir = -1, r = 22, ghost = false, down = false } = {}) {
+  const t = teams[team];
+  c.save();
+  c.translate(x, y);
+  if (ghost) c.globalAlpha = .47;
+  if (down) c.scale(1, .66);
+  disk(c, 2, 3, r + 1, '#142b25');
+  disk(c, 0, 0, r, t.color, t.shade);
+  if (down) {
+    line(c, [[-r * .40, -r * .40], [r * .40, r * .40]], white, 4);
+    line(c, [[r * .40, -r * .40], [-r * .40, r * .40]], white, 4);
+  } else {
+    poly(c, [[dir * (r + 7), 0], [dir * (r - 5), -8], [dir * (r - 5), 8]], white);
+    type(c, t.symbol, -dir * 2, 1, r * 1.2, white, { max: r * 2 });
+  }
+  c.restore();
+}
+function markOut(c, x, y, r = 17) {
+  disk(c, x, y, r, red, white);
+  line(c, [[x - 6, y - 6], [x + 6, y + 6]], white, 4);
+  line(c, [[x + 6, y - 6], [x - 6, y + 6]], white, 4);
+}
+function hand(c, x, y, scale, flip, sleeve, skin) {
+  c.save();
+  c.translate(x, y);
+  c.scale(flip * scale, scale);
+  const shape = new Path2D('M -75 42 L -54 9 Q -42 -8 -24 -10 L 23 -23 Q 39 -28 45 -19 Q 48 -13 37 -8 L 17 0 L 57 -6 Q 66 -7 70 -1 Q 72 5 61 10 L 38 17 L 74 14 Q 83 12 86 20 Q 88 28 76 32 L 44 40 Q 50 45 44 53 Q 38 63 1 61 L -18 60 L -48 81 Z');
+  c.lineWidth = 3;
+  c.strokeStyle = ink;
+  c.fillStyle = skin;
+  c.fill(shape);
+  c.stroke(shape);
+  poly(c, [[-92, 58], [-69, 33], [-34, 64], [-57, 89], [-92, 89]], sleeve);
+  line(c, [[-91, 57], [-69, 33], [-34, 64], [-57, 89]], ink, 3);
+  line(c, [[15, 19], [34, 17]], ink, 2);
+  line(c, [[18, 44], [41, 40]], ink, 2);
+  c.restore();
+}
+function track(c, x, y, w, h, { cols = 8, lanes = 4, finish = 0, stars = [], folds = [] } = {}) {
+  const cw = w / cols;
+  const lh = h / lanes;
+  rr(c, x + 3, y + 5, w, h, 9, '#22281c34');
+  c.save();
+  c.beginPath();
+  c.roundRect(x, y, w, h, 9);
+  c.clip();
+  for (let j = 0; j < lanes; j++) {
+    c.fillStyle = turf[j % 2];
+    c.fillRect(x, y + j * lh, w, lh);
+    if (j % 2 === 0) {
+      c.fillStyle = '#ffffff0c';
+      for (let i = 0; i < cols; i++) if (i % 2 === 0) c.fillRect(x + i * cw, y + j * lh, cw, lh);
+    }
+    for (let i = 1; i < cols; i++) {
+      if (i !== finish && !folds.includes(i)) line(c, [[x + i * cw, y + (j + .32) * lh], [x + i * cw, y + (j + .68) * lh]], '#f2ecb5a8', 2.4);
     }
   }
-  ctx.restore();
+  for (const i of folds) line(c, [[x + i * cw, y], [x + i * cw, y + h]], white, 3.2);
+  for (const [i, j] of stars) star(c, x + (i + .5) * cw, y + (j + .5) * lh, 10, '#e2e8b2');
+  if (finish) checkers(c, x + cw * finish - 6, y, Math.ceil(h / 6), 6);
+  c.restore();
+  rr(c, x, y, w, h, 9, '', pine, 3);
+  const cell = (i, j) => [x + (i + .5) * cw, y + (j + .5) * lh];
+  return { cell, x, y, cw, lh };
 }
-
-function ticket(ctx, x, y, kind, side, values, { w = 250, h = 84, label } = {}) {
-  const yes = kind === "yes", no = kind === "no";
-  const m = yes ? { main: "#7CC58A", dark: "#2F7A43", light: "#D9F0DC" } : no ? { main: "#F0A6A8", dark: "#A83A44", light: "#FBE0E0" } : M[kind];
-  rr(ctx, x + 2, y + 4, w, h, 8, "#0000002A");
-  rr(ctx, x, y, w, h, 8, m.light, m.dark, 2.5);
-  rr(ctx, x, y, 62, h, [8, 0, 0, 8], m.main);
-  if (yes || no) text(ctx, yes ? "ДА" : "НЕТ", x + 31, y + h / 2, yes ? 22 : 19, "#fff", "center", true);
-  else mascot(ctx, x + 31, y + h / 2 + 4, kind, { r: 17 });
-  text(ctx, side, x + 62 + (w - 62) / 2, y + 15, 15, m.dark, "center", true);
-  const n = values.length, cw = (w - 70) / n;
-  values.forEach((v, i) => {
-    const cx = x + 66 + cw * (i + .5);
-    text(ctx, v, cx, y + h / 2 + 6, 26, v.startsWith("−") ? C.bad : C.ink, "center", true);
-    if (label) text(ctx, label[i], cx, y + h - 13, 13, C.muted);
-  });
+function pathMove(c, t, from, to, turn = false) {
+  const [x, y] = t.cell(...from);
+  const [u, v] = t.cell(...to);
+  const d = Math.sign(u - x);
+  if (turn) {
+    const dy = Math.sign(v - y);
+    arrow(c, [[x + d * 24, y], [u, y], [u, v - dy * 24]], yellow, 6);
+  } else {
+    const gap = Math.abs(x - u) < 54 ? 13 : 24;
+    arrow(c, [[x + d * gap, y + 14], [u - d * gap, v + 14]], yellow, 5);
+  }
 }
-
-function bill(ctx, x, y, n, rot = 0) {
-  ctx.save(); ctx.translate(x, y); ctx.rotate(rot);
-  rr(ctx, -42, -22, 84, 44, 5, C.money, C.moneyEdge, 2.5); rr(ctx, -34, -15, 68, 30, 4, null, C.moneyEdge, 1.5);
-  text(ctx, "$" + n, 0, 1, 20, "#6B4E0E", "center", true); ctx.restore();
-}
-
-function scene(title, caption, draw) {
-  const c = createCanvas(W, H), ctx = c.getContext("2d");
-  ctx.fillStyle = C.paper; ctx.fillRect(0, 0, W, H);
-  rr(ctx, 8, 8, W - 16, H - 16, 17, null, C.frame, 2);
-  rr(ctx, 42, 37, 6, 30, 3, C.accent);
-  text(ctx, title, 64, 53, 33, C.ink, "left", true);
-  draw(ctx);
-  rr(ctx, 33, 446, 702, 42, 8, C.bar);
-  let size = 24; ctx.font = font(size); while (ctx.measureText(caption).width > 670) { size--; ctx.font = font(size); }
-  text(ctx, caption, W / 2, 467, size);
+function layout(title, caption, draw) {
+  const c = createCanvas(W, H);
+  const g = c.getContext('2d');
+  g.fillStyle = cream;
+  g.fillRect(0, 0, W, H);
+  poly(g, [[0, 0], [W, 0], [W, 78], [0, 96]], yellow);
+  poly(g, [[0, 0], [25, 0], [0, 53]], orange);
+  scatter(g, 622, 12, 117, 48, title.length + 21, 12);
+  type(g, title, 37, 42, 41, ink, { align: 'left', max: 586 });
+  poly(g, [[0, 453], [W, 440], [W, 512], [0, 512]], pine);
+  poly(g, [[0, 453], [W, 440], [W, 444], [0, 457]], yellow);
+  type(g, caption, W / 2, 482, 25, white, { max: 718 });
+  draw(g);
   return c;
 }
 
 const scenes = {
-  roles: scene("Три роли", "Роли распределяют между игроками за столом", ctx => {
-    const col = (cx, name, sub, draw) => { rr(ctx, cx - 105, 95, 210, 300, 16, "#FFFFFF", C.frame, 2); draw(cx); text(ctx, name, cx, 330, 25, C.ink, "center", true); text(ctx, sub, cx, 364, 18, C.muted); };
-    col(150, "Букмекер", "билеты и деньги", cx => { ticket(ctx, cx - 80, 130, "bear", "НОРМ", ["10", "7"], { w: 160, h: 70 }); bill(ctx, cx - 30, 245, 10, -.15); bill(ctx, cx + 35, 260, 5, .12); });
-    col(384, "Дилер", "колода гонки", cx => { for (let i = 0; i < 4; i++) card(ctx, cx - 60 + i * 9, 130 + i * 4, { back: true, w: 74, h: 106 }); card(ctx, cx + 5, 165, { kind: "fish", label: "2", w: 74, h: 106, rot: .18 }); });
-    col(618, "Распорядитель", "двигает маскотов", cx => { const t = track(ctx, cx - 85, 140, 170, 120, { cols: 4, lanes: 2, finish: false }); mascot(ctx, ...t.cell(3, 0), "bear", { r: 20, ghost: true }); mascot(ctx, ...t.cell(1, 0), "bear", { r: 20 }); arrow(ctx, [[t.cell(3, 0)[0] - 26, t.cell(3, 0)[1] + 28], [t.cell(1, 0)[0] + 26, t.cell(1, 0)[1] + 28]], { color: "#fff", w: 5 }); });
-  }),
-  track: scene("Трасса", "Маскоты на старте смотрят на финишную линию", ctx => {
-    const t = track(ctx, 60, 120, 648, 260, { cols: 14, finish: true, start: true, folds: [5, 9], stars: [[2, 0], [2, 1], [2, 2], [2, 3], [6, 1], [7, 3], [6, 0], [11, 2], [11, 0], [7, 2], [11, 3], [10, 1]] });
-    ORDER.forEach((k, l) => mascot(ctx, ...t.cell(13, l), k, { r: 22 }));
-    tag(ctx, "Финиш", 95, 102); tag(ctx, "Старт", 683, 102);
-    arrow(ctx, [[600, 400], [180, 400]], { color: C.accent, w: 5 }); text(ctx, "бегут к финишу", 390, 422, 18, C.muted);
-  }),
-  tickets: scene("Билеты и деньги", "Шесть стопок стороной «Норм» вверх и по 10 долларов", ctx => {
-    const kinds = ["bear", "dog", "fish", "queen", "yes", "no"];
-    kinds.forEach((k, i) => {
-      const x = 52 + (i % 3) * 228, y = 100 + Math.floor(i / 3) * 128;
-      for (let j = 2; j >= 1; j--) rr(ctx, x + j * 6, y + j * 7, 206, 80, 8, "#E4E0D0", "#B8B29C", 1.5);
-      ticket(ctx, x, y, k, "НОРМ", k === "yes" || k === "no" ? ["10", "0"] : ["10", "7", "5"], { w: 206, h: 80 });
+  roles: ['Три роли', 'Распределите роли до первой гонки', c => {
+    const roles = [
+      ['Букмекер', 'Билеты и деньги', yellow, ink],
+      ['Дилер', 'Колода гонки', blue, white],
+      ['Распорядитель', 'Ход маскотов', pine, white],
+    ];
+    roles.forEach(([name, desc, color, fg], i) => {
+      const x = 40 + i * 233;
+      rr(c, x + 4, 124, 215, 282, 18, '#42352326');
+      rr(c, x, 117, 215, 282, 18, color);
+      type(c, name, x + 107, 326, i === 2 ? 23 : 27, fg, { max: 202 });
+      type(c, desc, x + 107, 364, 22, fg, { max: 194, light: true });
+      if (i === 0) {
+        disk(c, x + 107, 216, 53, red);
+        type(c, '$', x + 107, 216, 64, white);
+      } else if (i === 1) {
+        iconCard(c, x + 90, 220, { back: true, tilt: -.20, w: 77, h: 101 });
+        iconCard(c, x + 121, 210, { back: true, tilt: .18, w: 77, h: 101 });
+      } else {
+        chip(c, x + 69, 216, 2, { r: 31, ghost: true });
+        chip(c, x + 153, 216, 2, { r: 31, dir: 1 });
+        arrow(c, [[x + 63, 263], [x + 156, 263]], yellow, 6);
+      }
     });
-    text(ctx, "Каждому:", 300, 395, 22, C.ink, "right", true); bill(ctx, 360, 396, 10, -.05);
-  }),
-  deck: scene("Колода гонки", "Все видят колоду: стартовые в рамке, по дорожкам маскотов", ctx => {
-    const labels = { queen: ["−2", "*", "1"], fish: ["2", "3"], dog: ["1", "−1"], bear: ["3", "*", "2"] };
-    ORDER.forEach((k, l) => {
-      const y = 86 + l * 78;
-      mascot(ctx, 76, y + 35, k, { r: 20 });
-      card(ctx, 122, y, { kind: k, label: k === "dog" ? "2" : "1", start: true, w: 56, h: 70 });
-      labels[k].forEach((lab, i) => card(ctx, 196 + i * 66, y, { kind: k, label: lab, w: 58, h: 70 }));
+  }],
+  track: ['Трасса и маскоты', 'Все четверо смотрят в сторону финиша', c => {
+    const stars = [0, 1, 6, 13].flatMap(i => teams.map((_, j) => [i, j]));
+    const t = track(c, 40, 155, 688, 199, { cols: 14, finish: 1, stars, folds: [4, 8, 11] });
+    rr(c, 718, 149, 14, 211, 4, yellow, pine, 2.5);
+    teams.forEach((_, i) => {
+      const [x, y] = t.cell(11, i);
+      chip(c, x, y, i, { r: 18 });
+      rr(c, 462, y - 14, 100, 28, 14, pine);
+      type(c, teams[i].name, 512, y + 1, 17, white, { max: 88 });
     });
-    rr(ctx, 488, 100, 240, 300, 16, "#FFFFFF", C.frame, 2);
-    text(ctx, "Для всех", 608, 134, 22, C.ink, "center", true);
-    card(ctx, 540, 170, { green: true, label: "Все 1", w: 64, h: 90 }); card(ctx, 616, 170, { green: true, label: "Все 2", w: 64, h: 90 });
-    text(ctx, "зелёные карты", 608, 300, 19, C.muted); text(ctx, "двигают всех сразу", 608, 328, 19, C.muted);
-  }),
-  hand: scene("На руку", "Свои карты гонки никому не показывайте", ctx => {
-    for (let i = 0; i < 3; i++) card(ctx, 240 + i * 100, 120, { back: true, w: 92, h: 132, rot: (i - 1) * .12 });
-    card(ctx, 548, 140, { back: true, w: 80, h: 116, rot: .25 });
-    ctx.save(); ctx.globalAlpha = .9; tag(ctx, "вдвоём — ещё одна", 588, 290, { bg: C.accent, size: 17 }); ctx.restore();
-    text(ctx, "по 3 карты рубашкой вверх", 384, 340, 24, C.ink, "center", true);
-    text(ctx, "остальные карты гонки — в коробку", 384, 382, 19, C.muted);
-  }),
-  draft: scene("Ставки змейкой", "Второй круг — обратно: последний берёт два подряд", ctx => {
-    const xs = [150, 306, 462, 618];
-    xs.forEach((x, i) => { circle(ctx, x, 250, 40, "#FFFFFF", C.ink, 3); text(ctx, "Игрок " + (i + 1), x, 250, 17, C.ink, "center", true); });
-    arrow(ctx, [[110, 185], [384, 110], [658, 185]], { color: C.good, w: 6 });
-    xs.forEach((x, i) => tag(ctx, String(i + 1), x, 176 - (i === 1 || i === 2 ? 22 : 0), { bg: C.good, size: 20 }));
-    arrow(ctx, [[658, 315], [384, 390], [110, 315]], { color: C.accent, w: 6 });
-    xs.forEach((x, i) => tag(ctx, String(8 - i), x, 324 + (i === 1 || i === 2 ? 22 : 0), { bg: C.accent, size: 20 }));
-    text(ctx, "1-й круг", 384, 95, 18, C.good, "center", true); text(ctx, "2-й круг", 384, 412, 18, C.accent, "center", true);
-  }),
-  ticket: scene("Билеты ставок", "«Риск» дороже за победу, а побочная ставка может отнять", ctx => {
-    const lab = ["1-е", "2-е", "3-е"], yn = ["верно", "неверно"];
-    text(ctx, "Билет маскота", 196, 98, 21, C.ink, "center", true); text(ctx, "Побочная ставка", 572, 98, 21, C.ink, "center", true);
-    ticket(ctx, 52, 120, "bear", "НОРМ", ["10", "7", "5"], { w: 288, h: 96, label: lab });
-    ticket(ctx, 52, 250, "bear", "РИСК", ["15", "5", "2"], { w: 288, h: 96, label: lab });
-    ticket(ctx, 428, 120, "yes", "НОРМ", ["10", "0"], { w: 288, h: 96, label: yn });
-    ticket(ctx, 428, 250, "yes", "РИСК", ["15", "−5"], { w: 288, h: 96, label: yn });
-    text(ctx, "за 4-е место — $0", 196, 380, 19, C.muted); text(ctx, "«Нет» — такой же билет", 572, 380, 19, C.muted);
-  }),
-  go: scene("Старт гонки", "Три карты — в сброс рубашкой вверх, четвёртую открыть", ctx => {
-    ["3", "2", "1"].forEach((n, i) => { card(ctx, 70 + i * 120, 150, { back: true, w: 92, h: 132, rot: (i - 1) * .06 }); tag(ctx, n + (i === 2 ? "…" : ","), 116 + i * 120, 320, { bg: C.ink, size: 24 }); });
-    arrow(ctx, [[420, 216], [490, 216]], { color: C.accent });
-    card(ctx, 520, 140, { kind: "fish", label: "2", w: 104, h: 150 });
-    tag(ctx, "Вперёд!", 572, 330, { bg: C.accent, size: 26 });
-    text(ctx, "сброс", 236, 380, 19, C.muted); text(ctx, "первая карта гонки", 572, 380, 19, C.muted);
-  }),
-  moves: scene("Число, звезда, разворот", "Маскот идёт туда, куда смотрит", ctx => {
-    const t = track(ctx, 60, 100, 648, 300, { cols: 12, lanes: 3, finish: true, stars: [[2, 1], [5, 1], [10, 1]] });
-    // number: 3 cells forward
-    mascot(ctx, ...t.cell(9, 0), "bear", { ghost: true }); mascot(ctx, ...t.cell(6, 0), "bear");
-    arrow(ctx, [[t.cell(9, 0)[0] - 24, t.cell(9, 0)[1]], [t.cell(6, 0)[0] + 28, t.cell(6, 0)[1]]], { color: "#fff" });
-    card(ctx, t.cell(11, 0)[0] - 22, t.cell(11, 0)[1] - 30, { kind: "bear", label: "3", w: 42, h: 60 });
-    // star: to the next star in the facing direction
-    mascot(ctx, ...t.cell(9, 1), "fish", { ghost: true }); mascot(ctx, ...t.cell(5, 1), "fish");
-    star(ctx, t.cell(5, 1)[0] + 20, t.cell(5, 1)[1] - 22, 11, C.yellow);
-    arrow(ctx, [[t.cell(9, 1)[0] - 24, t.cell(9, 1)[1] - 10], [t.cell(7, 1)[0], t.cell(7, 1)[1] - 40], [t.cell(5, 1)[0] + 26, t.cell(5, 1)[1] - 10]], { color: "#fff" });
-    card(ctx, t.cell(11, 1)[0] - 22, t.cell(11, 1)[1] - 30, { kind: "fish", label: "*", w: 42, h: 60 });
-    // turned around: a forward move goes away from the finish
-    mascot(ctx, ...t.cell(5, 2), "dog", { ghost: true, dir: 1 }); mascot(ctx, ...t.cell(7, 2), "dog", { dir: 1 });
-    arrow(ctx, [[t.cell(5, 2)[0] + 24, t.cell(5, 2)[1]], [t.cell(7, 2)[0] - 28, t.cell(7, 2)[1]]], { color: "#fff" });
-    card(ctx, t.cell(11, 2)[0] - 22, t.cell(11, 2)[1] - 30, { kind: "dog", label: "2", w: 42, h: 60 });
-    tag(ctx, "развёрнут", t.cell(5, 2)[0], t.cell(5, 2)[1] + 36, { bg: "#ffffffE0", fg: C.ink, size: 15 });
-  }),
-  fall: scene("Падение и подъём", "Упавший ползёт на 1 клетку. Подъём — раньше хода", ctx => {
-    const t = track(ctx, 60, 110, 300, 150, { cols: 5, lanes: 2, finish: false });
-    mascot(ctx, ...t.cell(3, 0), "queen", { fallen: true, ghost: true }); mascot(ctx, ...t.cell(2, 0), "queen", { fallen: true });
-    arrow(ctx, [[t.cell(3, 0)[0] - 24, t.cell(3, 0)[1]], [t.cell(2, 0)[0] + 28, t.cell(2, 0)[1]]], { color: "#fff" });
-    card(ctx, 170, 282, { kind: "queen", label: "3", w: 80, h: 100 }); text(ctx, "лежит: любой ход — 1 клетка", 210, 410, 19, C.muted);
-    const u = track(ctx, 410, 110, 300, 150, { cols: 5, lanes: 2, finish: false });
-    mascot(ctx, ...u.cell(4, 0), "dog", { fallen: true, ghost: true }); mascot(ctx, ...u.cell(2, 0), "dog");
-    arrow(ctx, [[u.cell(4, 0)[0] - 24, u.cell(4, 0)[1]], [u.cell(2, 0)[0] + 28, u.cell(2, 0)[1]]], { color: "#fff" });
-    card(ctx, 520, 282, { kind: "dog", label: "Подъём 2", w: 80, h: 100 }); text(ctx, "сначала встаёт, потом идёт", 560, 410, 19, C.muted);
-  }),
-  swerve: scene("Занос", "Вбок по взгляду маскота. С краю — за трассой", ctx => {
-    const t = track(ctx, 150, 150, 528, 250, { cols: 8, lanes: 4, finish: false });
-    mascot(ctx, ...t.cell(5, 2), "fish", { ghost: true }); mascot(ctx, ...t.cell(4, 1), "fish");
-    arrow(ctx, [[t.cell(5, 2)[0] - 20, t.cell(5, 2)[1] - 14], [t.cell(4, 1)[0] + 20, t.cell(4, 1)[1] + 14]], { color: "#fff" });
-    mascot(ctx, ...t.cell(2, 0), "bear", { ghost: true });
-    arrow(ctx, [[t.cell(2, 0)[0] - 6, t.cell(2, 0)[1] - 24], [t.cell(1.4, 0)[0], t.y - 34]], { color: C.bad });
-    cross(ctx, t.cell(1.4, 0)[0] - 22, t.y - 40, 14);
-    text(ctx, "за трассой — выбывает", t.cell(2, 0)[0] + 20, t.y - 30, 18, C.bad, "left", true);
-    card(ctx, 40, 210, { kind: "fish", label: "1 вправо", w: 84, h: 110 });
-  }),
-  collide: scene("Столкновение", "Стоявший падает. Упавший снова — выбывает", ctx => {
-    const t = track(ctx, 60, 110, 300, 150, { cols: 5, lanes: 2, finish: false });
-    mascot(ctx, ...t.cell(4, 0), "bear", { ghost: true }); mascot(ctx, ...t.cell(2, 0), "queen", { fallen: true }); mascot(ctx, ...t.cell(1, 0), "bear");
-    arrow(ctx, [[t.cell(4, 0)[0] - 24, t.cell(4, 0)[1] + 18], [t.cell(1, 0)[0] + 26, t.cell(1, 0)[1] + 18]], { color: "#fff" });
-    text(ctx, "сквозь клетку — стоявший падает", 210, 300, 19, C.ink, "center", true);
-    const u = track(ctx, 410, 110, 300, 150, { cols: 5, lanes: 2, finish: false });
-    mascot(ctx, ...u.cell(4, 0), "fish", { ghost: true }); mascot(ctx, ...u.cell(2, 0), "dog", { fallen: true }); mascot(ctx, ...u.cell(1, 0), "fish");
-    arrow(ctx, [[u.cell(4, 0)[0] - 24, u.cell(4, 0)[1] + 18], [u.cell(1, 0)[0] + 26, u.cell(1, 0)[1] + 18]], { color: "#fff" });
-    cross(ctx, u.cell(2, 0)[0] + 18, u.cell(2, 0)[1] - 22, 14);
-    text(ctx, "упавшего толкнули — выбывает", 560, 300, 19, C.bad, "center", true);
-    text(ctx, "Тот, кто двигался, не падает", 384, 380, 20, C.muted);
-  }),
-  green: scene("Зелёная карта", "Все сразу, без столкновений, до финишной линии", ctx => {
-    const t = track(ctx, 160, 100, 548, 300, { cols: 9, lanes: 4, finish: true });
-    const from = [3, 2, 1, 4], to = [1, 0, 0, 2];
-    ORDER.forEach((k, l) => { mascot(ctx, ...t.cell(from[l], l), k, { ghost: true }); mascot(ctx, ...t.cell(to[l], l), k); arrow(ctx, [[t.cell(from[l], l)[0] - 24, t.cell(from[l], l)[1]], [t.cell(to[l], l)[0] + 28, t.cell(to[l], l)[1]]], { color: "#fff", w: 4, head: 11 }); });
-    card(ctx, 46, 190, { green: true, label: "Все 2", w: 86, h: 124 });
-  }),
-  fold: scene("Колода кончилась", "Трассу складывают до следующей белой линии", ctx => {
-    const t = track(ctx, 60, 120, 648, 260, { cols: 14, finish: true, folds: [5, 9] });
-    ctx.fillStyle = "#F6C925EE"; ctx.fillRect(t.x + 9 * t.cw, t.y - 8, 5 * t.cw + 8, t.h + 16);
-    ctx.strokeStyle = C.yellowDark; ctx.lineWidth = 3; ctx.strokeRect(t.x + 9 * t.cw, t.y - 8, 5 * t.cw + 8, t.h + 16);
-    text(ctx, "сложено", t.x + 11.5 * t.cw, t.y + t.h / 2, 26, "#6B4E0E", "center", true);
-    mascot(ctx, ...t.cell(4, 1), "bear"); mascot(ctx, ...t.cell(7, 2), "fish");
-    mascot(ctx, ...t.cell(11, 3), "dog", { ghost: true }); cross(ctx, ...t.cell(11, 3), 15);
-    tag(ctx, "под трассой — выбывает", t.x + 11.5 * t.cw, t.y - 26, { bg: C.bad, size: 17 });
-  }),
-  podium: scene("Пьедестал", "Финиш — на высшее свободное место, выбывший — на низшее", ctx => {
-    const xs = [160, 310, 460, 610];
-    xs.forEach((x, i) => { rr(ctx, x - 62, 200, 124, 150, 14, C.yellow, C.yellowDark, 3); circle(ctx, x, 290, 42, "#FFFFFF", "#C0392B", 4); text(ctx, String(i + 1), x, 292, 40, "#B3261E", "center", true); });
-    mascot(ctx, 160, 160, "fish", { r: 26 }); mascot(ctx, 310, 160, "bear", { r: 26 }); mascot(ctx, 610, 160, "dog", { r: 26 }); cross(ctx, 632, 138, 13);
-    arrow(ctx, [[60, 110], [130, 140]], { color: C.good }); text(ctx, "финиш", 60, 92, 18, C.good, "left", true);
-    arrow(ctx, [[708, 110], [640, 140]], { color: C.bad }); text(ctx, "выбывший", 708, 92, 18, C.bad, "right", true);
-    text(ctx, "3 маскота на пьедестале — гонка окончена", 384, 395, 20, C.muted);
-  }),
-  double: scene("3-я гонка", "Верхний билет платит вдвое — и минус тоже", ctx => {
-    ticket(ctx, 190, 262, "yes", "РИСК", ["15", "−5"], { w: 300, h: 96 });
-    ticket(ctx, 170, 150, "fish", "НОРМ", ["10", "7", "5"], { w: 300, h: 96 });
-    tag(ctx, "× 2", 540, 198, { bg: C.accent, size: 30 }); tag(ctx, "× 1", 560, 310, { bg: C.muted, size: 24 });
-    text(ctx, "сверху", 120, 198, 20, C.ink, "center", true); text(ctx, "снизу", 120, 310, 20, C.muted);
-  }),
-  big: scene("Большая компания", "Банки делят угадавшие поровну, с округлением вниз", ctx => {
-    ctx.save(); ctx.translate(170, 250); ctx.rotate(-.05);
-    rr(ctx, -115, -140, 230, 280, 6, C.paperSheet, "#C9C2A8", 2);
-    for (let i = 0; i < 6; i++) { ctx.strokeStyle = "#D7E2F2"; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(-100, -90 + i * 40); ctx.lineTo(100, -90 + i * 40); ctx.stroke(); }
-    text(ctx, "Гонка 3", 0, -112, 20, C.ink, "center", true);
-    text(ctx, "Дэнгл", -88, -70, 24, "#1B3567", "left", true); text(ctx, "Да", -88, -30, 24, "#2F7A43", "left", true);
-    ctx.strokeStyle = C.accent; ctx.lineWidth = 3; ctx.beginPath(); ctx.ellipse(-50, -70, 56, 22, 0, 0, Math.PI * 2); ctx.stroke();
-    text(ctx, "+ $9", 60, 30, 24, C.good, "center", true);
-    ctx.restore();
-    const pots = [["1-е место", 18], ["2-е место", 12], ["3-е место", 6], ["Побочная", 18]];
-    pots.forEach(([n, v], i) => { const x = 370 + (i % 2) * 180, y = 120 + Math.floor(i / 2) * 150; rr(ctx, x, y, 160, 124, 14, "#FFFFFF", C.frame, 2); text(ctx, n, x + 80, y + 30, 19, C.muted); text(ctx, "$" + v, x + 80, y + 78, 40, C.ink, "center", true); });
-  }),
+    pill(c, 'Финиш', 91, 125, 109);
+    pill(c, 'Старт', 605, 125, 97, red);
+    arrow(c, [[650, 386], [122, 386]], orange, 6);
+    type(c, 'Направление забега', 384, 416, 22, pine);
+  }],
+  tickets: ['Билеты и деньги', '«Норм» вверх, мелкие билеты сверху', c => {
+    const colors = [yellow, '#86a1e9', '#ff9274', '#df80ad', '#8fd769', '#ed8ea4'];
+    ['Маскот', 'Маскот', 'Маскот', 'Маскот', 'Да', 'Нет'].forEach((label, i) => {
+      const x = 37 + i * 99 + (i === 5 ? 99 : 0);
+      rr(c, x, 154, 90, 119, 9, colors[i], ink);
+      rr(c, x + 4, 162, 82, 97, 9, colors[i], ink);
+      rr(c, x + 9, 171, 72, 71, 8, white, ink);
+      type(c, i < 4 ? teams[i].symbol : label.toUpperCase(), x + 45, 197, 28);
+      type(c, 'НОРМ', x + 45, 224, 17, pine);
+    });
+    iconCard(c, 577, 208, { w: 67, h: 86, fill: blue, mark: '?' });
+    type(c, 'Карта ставки', 577, 290, 17, pine);
+    ticket(c, 253, 327, 262, 80, '#f4be62', '$10', 'каждому');
+  }],
+  deck: ['Колода гонки', 'Пример для 4 игроков · все карты открыты', c => {
+    pill(c, '4 стартовые', 175, 136, 202);
+    pill(c, '10 случайных', 521, 136, 234, red);
+    teams.forEach((t, i) => iconCard(c, 64 + i * 74, 260, { w: 58, h: 94, fill: t.color, mark: t.symbol, frame: true }));
+    line(c, [[324, 170], [324, 356]], '#7e724f63', 3, [5, 8]);
+    const marks = ['1', '◆', '2', '−1', '●', '3', '■', '2', '▲', '1'];
+    marks.forEach((m, i) => iconCard(c, 391 + (i % 5) * 72, 220 + Math.floor(i / 5) * 104, { w: 56, h: 77, mark: m, fill: i === 9 ? pine : teams[i % 4].color }));
+    type(c, 'По одной на маскота', 175, 389, 23, pine, { max: 305 });
+    type(c, 'Зелёные действуют на всех', 521, 389, 23, pine, { max: 402 });
+  }],
+  hand: ['Карты на руку', 'Свои карты держите в секрете', c => {
+    const groups = [[205, 3, 'Обычная партия'], [563, 4, 'Вдвоём']];
+    groups.forEach(([x, count, label], group) => {
+      rr(c, x - 163, 134, 326, 261, 20, group ? '#eedb9f' : '#f3e4bd');
+      type(c, label, x, 172, 28, pine);
+      for (let i = 0; i < count; i++) {
+        const offset = i - (count - 1) / 2;
+        iconCard(c, x + offset * 61, 261 + Math.abs(offset) * 4, { w: 75, h: 102, back: true, tilt: offset * .105 });
+      }
+      type(c, `По ${count} карты`, x, 357, 31);
+    });
+  }],
+  draft: ['Ставки змейкой', 'Последний игрок берёт два билета подряд', c => {
+    const xs = [180, 312, 444, 576];
+    arrow(c, [[114, 176], [642, 176]], pine, 7);
+    arrow(c, [[642, 330], [114, 330]], red, 7);
+    xs.forEach((x, i) => {
+      disk(c, x, 176, 25, pine, white);
+      disk(c, x, 330, 25, red, white);
+      type(c, String(i + 1), x, 176, 26, white);
+      type(c, String(8 - i), x, 330, 26, white);
+      ticket(c, x - 55, 220, 110, 67, yellow, String(i + 1));
+    });
+    type(c, '1-й круг', 381, 125, 23, pine);
+    type(c, '2-й круг', 381, 383, 23, red);
+  }],
+  ticket: ['Билеты ставок', 'Сторону билета выбирают сразу', c => {
+    type(c, 'Билет маскота', 214, 132, 30, pine);
+    type(c, 'Побочная ставка', 552, 132, 30, pine);
+    ticket(c, 59, 172, 310, 85, yellow, 'НОРМ', '1-е · 2-е · 3-е');
+    ticket(c, 59, 289, 310, 85, '#ff986e', 'РИСК', 'Больше за 1-е место');
+    ticket(c, 398, 172, 310, 85, '#abd775', 'НОРМ', 'Выплата за верный ответ');
+    ticket(c, 398, 289, 310, 85, '#ed8faa', 'РИСК', 'Можно потерять деньги');
+    type(c, 'За 4-е место — $0', 214, 407, 22, pine);
+    type(c, 'Выберите «Да» или «Нет»', 552, 407, 22, pine);
+  }],
+  shuffle: ['Подмешайте карты', 'Затем дилер тасует всю колоду гонки', c => {
+    iconCard(c, 163, 228, { w: 103, h: 144, back: true, tilt: -.13 });
+    iconCard(c, 229, 229, { w: 86, h: 123, back: true, tilt: .17 });
+    arrow(c, [[315, 231], [395, 231]], orange, 8);
+    hand(c, 471, 248, .66, 1, blue, '#e6925f');
+    hand(c, 684, 224, .64, -1, red, '#e6925f');
+    for (let i = 0; i < 4; i++) iconCard(c, 503 + i * 39, 212 - i * 4, { w: 88, h: 120, back: true, tilt: (i - 1.5) * .15 });
+    pill(c, 'С руки рубашкой вверх', 199, 343, 303);
+    type(c, 'По 1 карте · вдвоём по 2', 199, 397, 24, pine);
+    type(c, 'Перемешайте', 560, 343, 29, red);
+  }],
+  go: ['Старт гонки', 'На «Вперёд!» открывают 4-ю карту', c => {
+    const positions = [104, 232, 360];
+    positions.forEach((x, i) => {
+      iconCard(c, x, 222, { w: 93, h: 128, back: true, tilt: (i - 1) * .10 });
+      type(c, String(3 - i), x, 319, 36, pine);
+    });
+    arrow(c, [[431, 218], [516, 218]], orange, 9);
+    scatter(c, 559, 143, 155, 161, 82, 16);
+    iconCard(c, 616, 219, { w: 108, h: 145, fill: blue, mark: '2', tilt: .10 });
+    pill(c, 'Вперёд!', 616, 319, 131, red);
+    type(c, 'Три карты в закрытый сброс', 233, 391, 25, pine);
+    type(c, 'Первая карта хода', 617, 391, 25, pine);
+  }],
+  moves: ['Число, звезда, разворот', 'Направление зависит от взгляда маскота', c => {
+    const t = track(c, 169, 136, 548, 263, { cols: 9, lanes: 3, finish: 1, stars: [[2, 1], [4, 1], [8, 1]] });
+    const moves = [[7, 4, 3, '3'], [7, 4, 1, '★'], [4, 6, 2, '2']];
+    moves.forEach(([a, b, team, symbol], row) => {
+      chip(c, ...t.cell(a, row), team, { ghost: true, dir: row === 2 ? 1 : -1 });
+      pathMove(c, t, [a, row], [b, row]);
+      chip(c, ...t.cell(b, row), team, { dir: row === 2 ? 1 : -1 });
+      iconCard(c, 91, t.cell(0, row)[1], { w: 69, h: 67, fill: teams[team].color, mark: symbol });
+    });
+    star(c, ...[t.cell(4, 1)[0], t.cell(4, 1)[1] + 33], 10, yellow);
+    pill(c, 'Финиш', 229, 115, 111);
+    pill(c, 'Развёрнут', 328, 353, 139, red);
+  }],
+  fall: ['«Падение» и «Порядок!»', '«Порядок!» срабатывает перед движением', c => {
+    const boards = [track(c, 41, 187, 323, 132, { cols: 6, lanes: 2 }), track(c, 403, 187, 324, 132, { cols: 6, lanes: 2 })];
+    pill(c, 'Маскот лежит', 202, 139, 203);
+    pill(c, 'Карта «Порядок!»', 565, 139, 255, red);
+    boards.forEach((t, i) => {
+      const target = i ? 2 : 3;
+      chip(c, ...t.cell(4, 0), 2, { down: true, ghost: true });
+      pathMove(c, t, [4, 0], [target, 0]);
+      chip(c, ...t.cell(target, 0), 2, { down: !i });
+    });
+    type(c, 'Даже по «3» — 1 клетка', 202, 369, 25, pine, { max: 330 });
+    type(c, 'Встал → прошёл 2 клетки', 565, 369, 24, pine, { max: 332 });
+  }],
+  swerve: ['Поворот на соседнюю дорожку', 'Упавший ползёт на 1 клетку и тоже поворачивает', c => {
+    const t = track(c, 190, 169, 521, 223, { cols: 7 });
+    const [x, y] = t.cell(3, 0);
+    const [startX, startY] = t.cell(5, 2);
+    chip(c, startX, startY, 1, { ghost: true });
+    pathMove(c, t, [5, 2], [3, 1], true);
+    chip(c, ...t.cell(3, 1), 1);
+    chip(c, ...t.cell(5, 0), 3, { ghost: true });
+    arrow(c, [[t.cell(5, 0)[0] - 26, y], [x, y], [x, 146]], yellow, 5);
+    markOut(c, x, 132);
+    iconCard(c, 99, 232, { w: 92, h: 99, fill: blue, mark: '2' });
+    type(c, 'Направо', 99, 312, 23, pine);
+    type(c, 'За край — выбывает', x + 30, 130, 23, red, { align: 'left', max: 245 });
+  }],
+  collide: ['Столкновение', 'Движущийся продолжает ход', c => {
+    const boards = [track(c, 40, 189, 323, 138, { cols: 6, lanes: 2 }), track(c, 405, 189, 323, 138, { cols: 6, lanes: 2 })];
+    boards.forEach((t, i) => {
+      const [x, y] = t.cell(3, 0);
+      pill(c, i ? 'Уже лежал' : 'Стоял', t.x + 162, 143, 171, i ? red : pine);
+      chip(c, ...t.cell(5, 0), 1, { ghost: true, r: 19 });
+      arrow(c, [[t.cell(5, 0)[0] - 19, y + 21], [t.cell(1, 0)[0] + 20, y + 21]], yellow, 5);
+      chip(c, ...t.cell(1, 0), 1, { r: 19 });
+      if (i) markOut(c, x, y - 1); else chip(c, x, y, 2, { down: true, r: 19 });
+      type(c, i ? 'Выбывает' : 'Падает', t.x + 162, 378, 31, i ? red : pine);
+    });
+  }],
+  green: ['Зелёная карта', 'Все действуют сразу, без столкновений', c => {
+    const t = track(c, 178, 154, 539, 244, { cols: 9, finish: 1 });
+    pill(c, 'Финиш', 237, 126, 109);
+    const from = [5, 3, 2, 6];
+    const to = [3, 1, 1, 4];
+    teams.forEach((_, i) => {
+      chip(c, ...t.cell(from[i], i), i, { ghost: true, r: 19 });
+      const [x, y] = t.cell(from[i], i);
+      const [u] = t.cell(to[i], i);
+      arrow(c, [[x, y + 24], [u + 3, y + 24]], yellow, 5);
+      chip(c, ...t.cell(to[i], i), i, { r: 19 });
+    });
+    iconCard(c, 99, 246, { w: 94, h: 122, fill: pine, mark: '2' });
+    type(c, 'Для всех', 99, 335, 23, pine);
+    type(c, 'Останавливаются у финишной линии', 456, 421, 22, pine);
+  }],
+  fold: ['Колода кончилась', 'Карты со сбросом тасуют и снова дают старт', c => {
+    const t = track(c, 42, 178, 680, 200, { cols: 12, finish: 1, folds: [4, 8] });
+    const edge = t.x + t.cw * 8;
+    chip(c, ...t.cell(4, 1), 3);
+    chip(c, ...t.cell(6, 2), 1);
+    rr(c, edge + 2, 178, 224, 200, 4, '#f5c544cc');
+    rr(c, 713, 174, 14, 208, 4, '#f5b722', pine, 2);
+    line(c, [[edge, 178], [edge, 378]], white, 4);
+    arrow(c, [[696, 150], [edge + 7, 150]], orange, 6);
+    markOut(c, ...t.cell(10, 2));
+    type(c, 'Под трассой', edge + 111, 219, 24);
+    type(c, 'выбывает', edge + 111, 253, 24, red);
+    type(c, 'До следующей сплошной белой линии', 353, 417, 24, pine);
+  }],
+  podium: ['Пьедестал на коробке', 'Три места заняты — последний получает оставшееся', c => {
+    scatter(c, 81, 156, 606, 84, 52, 43);
+    const xs = [132, 300, 468, 636];
+    xs.forEach((x, i) => {
+      rr(c, x - 73, 251, 146, 113, 9, '#553c23');
+      rr(c, x - 73, 242, 146, 102, 9, yellow, ink, 2);
+      disk(c, x, 293, 35, white, red);
+      type(c, String(i + 1), x, 294, 39, red);
+    });
+    chip(c, 132, 196, 1, { r: 29, dir: 1 });
+    chip(c, 300, 196, 0, { r: 29 });
+    chip(c, 636, 196, 3, { r: 29, down: true });
+    type(c, 'Финиш → высшее свободное', 246, 393, 23, pine);
+    type(c, 'Выбыл → низшее', 608, 393, 23, red);
+  }],
+  payout: ['Выплаты', 'После третьей гонки сравните деньги', c => {
+    type(c, 'Маскот', 206, 135, 30, pine);
+    type(c, 'Побочная ставка', 554, 135, 30, pine);
+    ticket(c, 48, 177, 315, 90, '#adc784', '1-е · 2-е · 3-е', 'Сумма по месту');
+    ticket(c, 402, 177, 315, 90, '#b6d993', 'Угадали', 'Сумма в билете');
+    ticket(c, 48, 297, 315, 90, '#f6da7d', '4-е', '$0');
+    ticket(c, 402, 297, 315, 90, '#f1a092', 'Не угадали', '«Риск» может дать минус');
+  }],
+  double: ['Третья гонка', 'Удваивается и выигрыш, и потеря', c => {
+    ticket(c, 113, 152, 367, 98, '#ff9e83', 'Выбранный билет', 'Положите сверху');
+    ticket(c, 113, 287, 367, 98, '#adc2de', 'Второй билет', 'Обычная выплата');
+    disk(c, 583, 201, 52, red);
+    disk(c, 583, 336, 52, pine);
+    type(c, '×2', 583, 206, 52, white);
+    type(c, '×1', 583, 341, 52, white);
+  }],
+  big: ['Большая компания', 'Угадавшие делят банк, округляя вниз', c => {
+    rr(c, 49, 145, 256, 259, 13, white, '#a69364', 2);
+    type(c, 'Листок ставок', 177, 181, 28, pine);
+    for (const y of [231, 295, 348]) line(c, [[70, y + 17], [283, y + 17]], '#87927380', 2);
+    type(c, 'Имя маскота', 177, 225, 25);
+    type(c, 'Да или Нет', 177, 287, 25);
+    type(c, 'Обведите одну ставку', 177, 330, 21, red, { max: 236 });
+    type(c, 'В 3-й гонке — ×2', 177, 353, 19, red);
+    type(c, '4 + 14 карт в колоде', 177, 378, 19, pine);
+    const pots = [['1-е место', '$18'], ['2-е место', '$12'], ['3-е место', '$6'], ['Побочная', '$18']];
+    pots.forEach(([label, n], i) => ticket(c, 353 + i % 2 * 185, 156 + Math.floor(i / 2) * 124, 167, 99, i === 3 ? '#f6ab96' : yellow, n, label));
+  }],
+  next: ['Перед новой гонкой', 'Маскоты возвращаются на старт прямо перед гонкой', c => {
+    const blocks = [
+      { text: 'Билеты в стопки', color: '#f9ce56', mark: '✓' },
+      { text: 'Карту ставки вниз', color: '#fa987e', mark: '↓' },
+      { text: 'Доберите карты', color: '#9dc575', mark: '+' },
+    ];
+    blocks.forEach(({ text, color, mark }, i) => {
+      const x = 42 + i * 231;
+      rr(c, x, 145, 218, 227, 17, color);
+      iconCard(c, x + 109, 229, { w: 97, h: 112, fill: white, mark });
+      type(c, text, x + 109, 317, 21, ink, { max: 209 });
+      if (i === 2) type(c, 'По 1 · вдвоём по 2', x + 109, 346, 18, pine, { max: 206 });
+    });
+    type(c, 'В большой компании вместо добора замените 3 карты', 384, 414, 24, pine, { max: 682 });
+  }],
+  two: ['Вариант для двоих', 'Первый игрок меняется после каждой гонки', c => {
+    type(c, 'Порядок выбора билетов', 384, 129, 29, pine);
+    const order = [1, 2, 2, 1, 1, 2];
+    arrow(c, [[103, 214], [666, 214]], orange, 6);
+    order.forEach((n, i) => {
+      disk(c, 109 + i * 110, 214, 36, n === 1 ? pine : blue, white);
+      type(c, String(n), 109 + i * 110, 213, 37, white);
+    });
+    type(c, 'По 3 билета', 384, 290, 28);
+    ticket(c, 50, 332, 318, 78, yellow, '4 карты', 'на руку при подготовке');
+    ticket(c, 399, 332, 318, 78, '#f79d7a', 'По 2 карты', 'в колоду перед гонкой');
+  }],
 };
 
-const only = new Set(process.argv.slice(2));
-const dir = path.join(root, "app/games/hotstreak-art");
-fs.mkdirSync(dir, { recursive: true });
-for (const [key, c] of Object.entries(scenes)) if (!only.size || only.has(key)) {
-  const buf = c.toBuffer("image/webp", 92); fs.writeFileSync(path.join(dir, key + ".webp"), buf);
-  console.log(key, Math.round(buf.length / 1024) + "KB");
+
+const selected = new Set(process.argv.slice(2));
+const out = path.join(repo, 'app/games/hotstreak-art');
+for (const [key, args] of Object.entries(scenes)) {
+  if (!selected.size || selected.has(key)) {
+    fs.writeFileSync(path.join(out, key + '.webp'), layout(...args).toBuffer('image/webp', 92));
+  }
 }

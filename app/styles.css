@@ -859,6 +859,11 @@ body:has(.setup-screen.tight) .topbar{display:none}
 /* the turn in stages (docs/ui.md «Ход или раунд — по этапам»): the strip of the heist, tighter chips for up to four stages */
 .st-strip .hs-chip{padding:2px 4px;font-size:14px}
 .st-strip .hs-chip span{white-space:normal;line-height:1.1;text-align:center;overflow-wrap:anywhere}
+@media(max-width:420px){
+  .st-panel:has(.hotstreak-plate) .st-strip .hs-chip{font-size:clamp(11px,3.6vw,14px);padding-inline:3px}
+  .st-panel:has(.hotstreak-plate) .st-strip .hs-chip span{white-space:nowrap}
+  .st-panel:has(.hotstreak-plate) .st-strip .hs-chip.done svg{display:none}
+}
 .st-panel{scroll-margin-top:120px}
 .st-panel .rule-img + .hs-title,.st-panel .a-wide + .hs-title,.st-panel img + .hs-title{margin-top:12px}
 .st-panel .hs-title{margin-top:4px}

@@ -1765,8 +1765,13 @@ console.log(`${passed} passed${process.exitCode ? ", some FAILED" : ""}`);
     const table = { 3: 11, 4: 10, 5: 9, 6: 8, 7: 7, 8: 6 };
     for (const n of [3, 4, 5, 6, 7, 8]) { assert.strictEqual(rnd(n), table[n], n + " players"); assert.strictEqual(4 + rnd(n) + n, 18); }
     assert.strictEqual(rnd(2), 10); assert.strictEqual(4 + 10 + 2 * 2, 18, "two players slip 2 cards each");
-    assert.strictEqual(rnd(9), 14); assert.strictEqual(4 + 14, 18, "no hands in the 9+ variant"); assert.match(by(9, "deck").text, /В книге число не названо/);
-    assert.strictEqual(rnd(4, { big: true }), 10, "the variant in a smaller group: the deck as in a normal game (p. 28)"); assert.ok(!/ровно \*18\*/.test(ph(4, 1, { big: true })));
+    for (let n = 2; n <= 20; n++) {
+      const opts = n < 9 ? { big: true } : {};
+      assert.strictEqual(rnd(n, opts), 14, `big variant with ${n} players`);
+      assert.ok(!by(n, "hand", opts));
+      assert.match(ph(n, 1, opts), /ровно \*18\* карт/);
+      assert.doesNotMatch(ph(n, 1, opts), /из руки/);
+    }
     assert.match(by(2, "hand").text, /по \*4\* карты/); assert.match(by(5, "hand").text, /по \*3\* карты/);
     for (const n of [2, 3, 8]) assert.match(ph(n, 1), /ровно \*18\* карт/);
   });
@@ -1815,9 +1820,11 @@ console.log(`${passed} passed${process.exitCode ? ", some FAILED" : ""}`);
     for (const f of G.faq) { assert.ok(ids.has(f.ref), "faq ref " + f.ref); if (f.src) assert.ok(BH.FAQ_SRC[f.src], "faq src " + f.src); }
     const grouped = new Set(G.ruleGroups.flatMap(gr => gr.ids)); for (const id of ids) assert.ok(grouped.has(id), "rule in a group: " + id);
     assert.ok(G.rules.every(r => r.page >= 14 && r.page <= 31));
-    const html = [G.cover, G.rounds.art, ...steps(4).map(s => s.art), ...steps(12).map(s => s.art), ...G.rules.map(r => r.art || "")].join("");
+    const stageArt = [ctx(2), ctx(4), ctx(4, { big: true }), ctx(12)].flatMap(c =>
+      [1, 2, 3].flatMap(r => BH.stagesOf(G, c, r, 3).map(stage => stage.art)));
+    const html = [G.cover, ...stageArt, ...steps(4).map(s => s.art), ...steps(12).map(s => s.art), ...G.rules.map(r => r.art || "")].join("");
     const srcs = [...new Set([...html.matchAll(/src="([^"]+)"/g)].map(m => m[1]))], sw = fs.readFileSync(path.join(__dirname, "../app/sw.js"), "utf8");
-    assert.strictEqual(srcs.length, 18);
+    assert.strictEqual(srcs.length, 22);
     for (const src of srcs) { assert.ok(fs.existsSync(path.join(__dirname, "../app", src)), src); assert.ok(sw.includes(`"${src.split("/").pop().replace(".webp", "")}"`), "sw: " + src); }
   });
   t("hotstreak: all texts are neutral — no «-л» forms", () => {

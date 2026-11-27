@@ -1,6 +1,6 @@
 // Offline cache for the phone version: the app's own files only.
 // Service workers run only over HTTPS (or on localhost), so offline mode needs the app hosted on HTTPS.
-const CACHE = "nastolki-v114";
+const CACHE = "nastolki-v115";
 const FONTS = ["onest-cyrillic-400", "onest-latin-400", "onest-cyrillic-500", "onest-latin-500", "onest-cyrillic-600", "onest-latin-600",
   "onest-cyrillic-700", "onest-latin-700", "unbounded-cyrillic-600", "unbounded-latin-600", "unbounded-cyrillic-700", "unbounded-latin-700"]
   .map(f => `fonts/${f}-normal.woff2`);
@@ -13,7 +13,7 @@ const BIGWALK_ART = ["shuffle","start","coins","dice","portal","gum","finish","m
 const CHEESE_ART = ["shuffle","pantry","discard-space","match","peek","take-discard","refill","third-trap","tile-h1","tile-h2","tile-h3","tile-h4","tile-h5","tile-h6","cover"].map(name => `games/cheese-art/${name}.webp`);
 const DRAGONS_ART = ["board","start","stacks","goals","flip","fly","fly-fwd","finish","end","end-stacks","score","tie","cover"].map(name => `games/dragons-art/${name}.webp`);
 const SQUARE_COVERS = ["hotstreak","quoridor","dragons","cheese","bigwalk","jackal","thegang","toybattle","ribbit","dobble","faraway","flip7","flip7v","zoo","goldfever","coconuts","crokinole"].map(id => `games/covers/${id}.webp`);
-const HOTSTREAK_ART = ["roles","track","tickets","deck","hand","draft","ticket","go","moves","fall","swerve","collide","green","fold","podium","double","big"].map(name => `games/hotstreak-art/${name}.webp`);
+const HOTSTREAK_ART = ["roles","track","tickets","deck","hand","draft","ticket","shuffle","go","moves","fall","swerve","collide","green","fold","podium","payout","double","big","next","two"].map(name => `games/hotstreak-art/${name}.webp`);
 const QUORIDOR_ART = ["start2","start4","move","around","fence","open","jump","side","side-one","goal","jump4","turn"].map(name => `games/quoridor-art/${name}.webp`);
 const SHELL = [...SQUARE_COVERS, ...HOTSTREAK_ART, ...QUORIDOR_ART, ...DRAGONS_ART, ...CHEESE_ART, ...BIGWALK_ART, ...JACKAL_ART, ...THEGANG_ART, ...TOYBATTLE_ART, ...RIBBIT_ART, ...DOBBLE_ART, "./", "index.html", "styles.css", "manifest.webmanifest", "fonts/fonts.css", ...FONTS,
   "js/util.js", "js/sync.js", "js/store.js", "js/cloud.js", "js/voice.js", "js/assets.js", "js/games.js", "js/chances.js", "js/charts.js", "js/art.js", "js/speech.js", "js/wheel.js", "js/rules.js", "js/app.js",
