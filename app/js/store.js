@@ -25,12 +25,20 @@
     const out = {}, nums = (o, max) => { const c = {}; if (o && typeof o === "object" && !Array.isArray(o)) for (const [k, v] of Object.entries(o)) if (allowed.has(k)) c[k] = Math.max(0, Math.min(max, Math.round(Number(v)) || 0)); return c; };
     // how it ended: a pyramid or the coconuts (Coconuts), a goal (Gold Fever, Zoo), the H.Q., the medals or no more moves (Toy Battle)
     // the safe or a 6 in the mine (Большая бродилка); the third mousetrap or the end of the reserve (День сырка)
-    if (["pyramid", "coconuts", "goal", "hq", "medals", "out", "safe", "mine", "trap", "reserve"].includes(r.how)) out.how = r.how;
+    // the podium count (Летели дракончики)
+    if (["pyramid", "coconuts", "goal", "hq", "medals", "out", "safe", "mine", "trap", "reserve", "podium"].includes(r.how)) out.how = r.how;
     const counts = nums(r.counts, 99), cups = nums(r.cups, 14);
     if (Object.keys(counts).length) out.counts = counts;
     if (Object.keys(cups).length) out.cups = cups;
     // the player who is out and not counted (День сырка: the third mousetrap)
     if (typeof r.out === "string" && allowed.has(r.out)) out.out = r.out;
+    // Летели дракончики: the dragons on the podium (top first) and on each player's goal card — three different colours
+    const three = v => (Array.isArray(v) && v.length === 3 && v.every(c => typeof c === "string" && /^[a-z]{2,12}$/.test(c)) && new Set(v).size === 3 ? v.slice() : null);
+    if (three(r.podium)) out.podium = three(r.podium);
+    if (r.goals && typeof r.goals === "object" && !Array.isArray(r.goals)) {
+      const goals = {}; for (const [k, v] of Object.entries(r.goals)) if (allowed.has(k) && three(v)) goals[k] = three(v);
+      if (Object.keys(goals).length) out.goals = goals;
+    }
     return Object.keys(out).length ? out : null;
   }
   function cleanCoop(c) {

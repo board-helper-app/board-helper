@@ -1127,7 +1127,7 @@
     const reminder = typeof g.rounds.reminder === "function" ? g.rounds.reminder(ctx) : g.rounds.reminder;
     const turn = `${BH.player(s.first) ? `<div class="status-row" style="grid-template-columns:minmax(0,1fr)"><div class="stat-tile leader">${BH.avatar(BH.player(s.first))}<div class="leader-t"><span class="label">Начинает</span><b>${esc(BH.player(s.first).name)}</b></div></div></div>` : ""}
       ${chanceRow(s, g)}
-      <section class="panel"><div class="sec-h"><h2>${esc(g.rounds.title || "Как идёт ход")}</h2></div>${g.rounds.art || ""}<div class="reminder">${stepsHTML(reminder, g.id)}</div></section>
+      <section class="panel"><div class="sec-h"><h2>${esc(g.rounds.title || "Как идёт ход")}</h2></div>${(typeof g.rounds.art === "function" ? g.rounds.art(ctx) : g.rounds.art) || ""}<div class="reminder">${stepsHTML(reminder, g.id)}</div></section>
       <section class="panel"><div class="sec-h"><h2>Конец игры</h2></div>${stepsHTML(sc.end(goal), g.id)}</section>`;
     return playShell(s, g, [
       { id: "turn", label: g.rounds.tab || "Ход", html: turn },
@@ -1165,9 +1165,13 @@
     const num = (o, id) => (r.out === id && O ? O.word : o && o[id] !== undefined ? o[id] : "—");
     const seat = id => s.players.indexOf(id);
     const order = [...s.players].sort((a, b) => (s.winners.includes(b) - s.winners.includes(a)) || ((cups || {})[b] || 0) - ((cups || {})[a] || 0) || ((counts || {})[b] || 0) - ((counts || {})[a] || 0) || seat(a) - seat(b));
+    // Летели дракончики: the podium and the dragons of each goal card, as coloured dots with their names
+    const P = sc.count && sc.count.podium, col = c => (P && P.colors.find(x => x.id === c)) || null, goals = (P && r.goals) || null;
+    const dots = list => `<span class="pod-dots" role="img" aria-label="${esc(list.map(col).filter(Boolean).map(c => c.name).join(", "))}">${list.map(col).filter(Boolean).map(c => `<i style="background:${c.hex}" title="${esc(c.name)}"></i>`).join("")}</span>`;
+    const podium = P && r.podium ? `<div class="pod-done">${r.podium.map((c, i) => col(c) ? `<span class="mi"><i class="pod-dot" style="background:${col(c).hex}"></i><span>${esc(col(c).name)} +${P.steps[i].points}</span></span>` : "").join("")}</div>` : "";
     const sum = `${winCard(w.length ? "Победа: " + esc(w.map(p => p.name).join(" и ")) : "Партия окончена", `<p class="win-s">${esc(how)}</p>`)}
-      <section class="panel"><h2 style="margin-bottom:6px">Итог</h2>
-        ${counts || cups ? `<div class="scroll-x"><table class="tbl race-tbl"><thead><tr><th>Игрок</th>${cups ? "<th>Корзинки</th>" : ""}${counts ? `<th>${esc((sc.count && sc.count.word) || "Кокосы")}</th>` : ""}</tr></thead><tbody>${order.map(id => { const p = BH.player(id) || { name: "?", color: "#888" }; return `<tr><td><span class="race-who">${BH.avatar(p, "sm")}<b>${esc(p.name)}</b>${s.winners.includes(id) ? `<span class="won">${IC.trophy}</span>` : ""}</span></td>${cups ? `<td class="num">${num(cups, id)}</td>` : ""}${counts ? `<td class="num">${num(counts, id)}</td>` : ""}</tr>`; }).join("")}</tbody></table></div>`
+      <section class="panel"><h2 style="margin-bottom:6px">Итог</h2>${podium ? `<div class="label" style="margin:4px 0 6px">${esc(P.done)}</div>${podium}` : ""}
+        ${counts || cups ? `<div class="scroll-x"><table class="tbl race-tbl"><thead><tr><th>Игрок</th>${goals ? `<th>${esc(P.cardWord)}</th>` : ""}${cups ? "<th>Корзинки</th>" : ""}${counts ? `<th>${esc((sc.count && sc.count.word) || "Кокосы")}</th>` : ""}</tr></thead><tbody>${order.map(id => { const p = BH.player(id) || { name: "?", color: "#888" }; return `<tr><td><span class="race-who">${BH.avatar(p, "sm")}<b>${esc(p.name)}</b>${s.winners.includes(id) ? `<span class="won">${IC.trophy}</span>` : ""}</span></td>${goals ? `<td>${goals[id] ? dots(goals[id]) : "—"}</td>` : ""}${cups ? `<td class="num">${num(cups, id)}</td>` : ""}${counts ? `<td class="num">${num(counts, id)}</td>` : ""}</tr>`; }).join("")}</tbody></table></div>`
           : `<div class="list">${order.map(id => { const p = BH.player(id) || { name: "?", color: "#888" }; return `<a class="item" href="#/players/${esc(id)}">${BH.avatar(p, "sm")}<div class="t"><b>${esc(p.name)}</b></div>${s.winners.includes(id) ? `<span class="won">${IC.trophy}</span>` : ""}</a>`; }).join("")}</div>`}
       </section>`;
     return doneScreen(s, g, [{ id: "sum", label: "Итог", html: sum }], !!durOf(s));
@@ -2176,9 +2180,37 @@
         { label: "Продолжить игру", primary: true, run: closeDialog },
         { label: "Удалить партию", danger: true, run: () => confirmDelete(s) }] });
   }
+  // Летели дракончики: the marks of a podium sheet closed without saving come back when it is opened again
+  const raceKept = {};
   function openRaceSheet(s) {
-    sheet = { kind: "race", sid: s.id, counts: Object.fromEntries(s.players.map(id => [id, ""])), last: null, out: null };
+    const kept = raceKept[s.id], same = kept && s.players.every(id => id in kept.counts) && Object.keys(kept.counts).length === s.players.length;
+    sheet = same ? kept : { kind: "race", sid: s.id, counts: Object.fromEntries(s.players.map(id => [id, ""])), last: null, out: null };
+    // Летели дракончики: the podium, top first, and the dragons on each player's goal card count the points
+    if (!same && BH.game(s.gameId).scoring.count.podium) { Object.assign(sheet, { podium: [null, null, null], goals: Object.fromEntries(s.players.map(id => [id, []])) }); raceKept[s.id] = sheet; }
     BH.clearToast(); ovOpen(); renderOverlay();
+  }
+  // the points of each player whose goal card is marked in full; a card not marked in full — its number is typed by hand
+  function podiumRecount(s) {
+    const P = BH.game(s.gameId).scoring.count.podium;
+    for (const id of s.players) {
+      const v = BH.podiumScore(P, sheet.podium, sheet.goals[id]);
+      if (v !== null) sheet.counts[id] = String(v); else if (sheet.goals[id].length) sheet.counts[id] = "";
+    }
+  }
+  // a colour button of the podium sheet: a circle of the dragon's colour, ticked when chosen
+  const podSw = (c, act, data, on, off) => `<button type="button" class="sw pod-sw" style="background:${c.hex}" data-act="${act}" ${data} data-c="${c.id}" aria-pressed="${on}" ${off ? "disabled" : ""} aria-label="${esc(c.name)}" title="${esc(c.name)}">${on ? `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>` : ""}</button>`;
+  const twinsNote = (P, twins) => (twins.length ? `<p class="note small" style="margin-top:10px">${esc(P.twins)}</p>` : "");
+  function podiumHTML(s, g) {
+    const P = g.scoring.count.podium, full = sheet.podium.every(Boolean), twins = BH.podiumTwins(P, sheet.goals, s.players);
+    const steps = P.steps.map((st, i) => `<div class="pod-step"><span class="pod-pts" title="${esc(st.label)}">+${st.points}</span><span class="pod-lb">${esc(st.label)}</span>
+      <div class="swatches" role="group" aria-label="${esc(st.label + ", " + st.points)}">${P.colors.map(c => podSw(c, "pod-step", `data-i="${i}"`, sheet.podium[i] === c.id, sheet.podium[i] !== c.id && sheet.podium.includes(c.id))).join("")}</div></div>`).join("");
+    const rows = s.players.map(id => { const p = BH.player(id) || { name: "?", color: "#888" }, mine = sheet.goals[id];
+      return `<div class="pod-player${twins.includes(id) ? " twin" : ""}"><div class="race-row">${BH.avatar(p, "sm")}<span class="race-nm">${esc(p.name)}</span>
+        <input class="input score-in" type="number" inputmode="numeric" min="0" max="${g.scoring.count.max}" data-act="race-count" data-p="${id}" value="${esc(sheet.counts[id] ?? "")}" placeholder="—" aria-label="${esc(g.scoring.count.word)}: ${esc(p.name)}"></div>
+        <div class="swatches" role="group" aria-label="${esc(P.goalAsk)}: ${esc(p.name)}">${P.colors.map(c => podSw(c, "pod-goal", `data-p="${id}"`, mine.includes(c.id), !mine.includes(c.id) && mine.length >= P.pick)).join("")}</div></div>`; }).join("");
+    return `<div class="label" style="margin:0 0 6px">${esc(P.ask)}</div>${steps}
+      <div class="label" style="margin:16px 0 4px">${esc(P.goalAsk)}</div><p class="small muted">${esc(full ? P.goalHint : P.goalWait)}</p>${rows}
+      <div id="pod-twins">${twinsNote(P, twins)}</div>`;
   }
   // who wins by the counts so far: «ready» once every count is in and a tie is settled by the game's tie rule;
   // a game with a player out (count.out) first asks who it is — or nobody
@@ -2190,6 +2222,9 @@
     const tw = !r.all && r.winners.length === 1 && top.length > 1 ? r.winners[0] : null, picked = top.includes(sheet.last) ? sheet.last : null;
     const names = ids => (ids.length > 1 ? ids.slice(0, -1).map(pname).join(", ") + " и " + pname(ids[ids.length - 1]) : ids.map(pname).join(""));
     const ender = C.tie === "ender";
+    // Летели дракончики: nothing marked yet — the podium comes first
+    const P = C.podium;
+    if (P && !filled && !sheet.podium.every(Boolean) && counted.every(id => sheet.counts[id] === "")) return { filled, top, winners: [], out, text: P.start };
     const text = O && sheet.out === null ? O.ask : !filled ? (C.fill || "Впишите кокосы каждого игрока") : top.length === 1 ? `Больше всех: ${names(top)} — ${best}`
       : r.all ? `Поровну по ${best}, ${C.tieAll.toLowerCase()}. Общая победа: ${names(top)}`
       : tw ? (ender ? `Поровну по ${best}. Тот, кто закончил партию (${pname(picked)}), проигрывает. Победа: ${pname(tw)}` : C.tieWin ? `Поровну по ${best}. ${C.tieWin}: ${pname(tw)} — это победа` : `Поровну по ${best}. Победа по последнему ходу: ${pname(tw)}`)
@@ -2204,7 +2239,7 @@
       <div class="sheet-body">
         ${O ? `<div class="label" style="margin:0 0 6px">${esc(O.ask)}</div><div class="chips" style="margin-bottom:12px">${s.players.map(id => outChip(id, pname(id))).join("")}${outChip("none", O.none)}</div>` : ""}
         <p class="small muted">${esc(g.scoring.count.sheetHint || "Посчитайте кокосы в корзинках на планшете каждого игрока.")}</p>
-        ${raceRowsHTML(s.players, g, "counts", sheet.counts, "race-count", st.out)}
+        ${g.scoring.count.podium ? podiumHTML(s, g) : raceRowsHTML(s.players, g, "counts", sheet.counts, "race-count", st.out)}
         <div id="race-tie">${raceTieHTML(st, g)}</div>
       </div>
       <div class="sheet-foot side-foot">
@@ -2688,7 +2723,15 @@
       case "race-save": { if (!sheet || sheet.kind !== "race") break; const rs = BH.session(sheet.sid), st = raceSheetState(rs); if (!st.winners.length) break;
         const C = BH.game(rs.gameId).scoring.count;
         const counts = Object.fromEntries(BH.raceCounted(rs.players, st.out).filter(id => sheet.counts[id] !== "" && sheet.counts[id] !== null).map(id => [id, Math.max(0, Math.round(Number(sheet.counts[id])) || 0)]));
-        sheet = null; rs.race = st.out ? { how: C.out.how, counts, out: st.out } : { how: C.how, counts }; finish(rs, st.winners); break; }
+        // Летели дракончики: the podium and the goal cards marked in full are kept to show in the result
+        const pod = C.podium && sheet.podium.every(Boolean) ? { podium: sheet.podium.slice(), goals: Object.fromEntries(rs.players.filter(id => sheet.goals[id].length === C.podium.pick).map(id => [id, sheet.goals[id].slice()])) } : {};
+        delete raceKept[rs.id]; sheet = null; rs.race = st.out ? { how: C.out.how, counts, out: st.out } : Object.assign({ how: C.how, counts }, pod); finish(rs, st.winners); break; }
+      // Летели дракончики: the dragon on a step of the podium (once on one step only), the dragons of a goal card
+      case "pod-step": { if (!sheet || !sheet.podium) break; const i = +el.dataset.i, c = el.dataset.c;
+        sheet.podium[i] = sheet.podium[i] === c ? null : c; sheet.last = null; podiumRecount(BH.session(sheet.sid)); renderOverlay(); break; }
+      case "pod-goal": { if (!sheet || !sheet.goals) break; const P = BH.game(BH.session(sheet.sid).gameId).scoring.count.podium, mine = sheet.goals[el.dataset.p], c = el.dataset.c;
+        if (!mine) break; const k = mine.indexOf(c); if (k >= 0) mine.splice(k, 1); else if (mine.length < P.pick) mine.push(c); else break;
+        sheet.last = null; podiumRecount(BH.session(sheet.sid)); renderOverlay(); break; }
       // who is out (День сырка: the third mousetrap), or nobody; a tie picked before no longer holds
       case "race-out": if (!sheet || sheet.kind !== "race") break; sheet.out = sheet.out === el.dataset.id ? null : el.dataset.id; sheet.last = null; renderOverlay(); break;
       // a pair wins together: one chip for both partners
@@ -3099,7 +3142,18 @@
       return;
     }
     if (el.dataset.act === "race-count" && sheet && sheet.kind === "race") {
+      // a tie settled before (who won, a shared win) no longer holds once the leaders change
+      const leaders = () => { const rs = BH.session(sheet.sid); return BH.raceCountWinners(BH.game(rs.gameId), rs.players, sheet.counts, null).top.join(); }, was = leaders();
       sheet.counts[el.dataset.p] = el.value;
+      if (leaders() !== was) sheet.last = null;
+      // a number typed by hand replaces the goal card marked for this player
+      if (sheet.goals && sheet.goals[el.dataset.p] && sheet.goals[el.dataset.p].length) {
+        sheet.goals[el.dataset.p] = [];
+        const row = el.closest(".pod-player"); if (row) row.querySelectorAll(".pod-sw").forEach(b => { b.setAttribute("aria-pressed", "false"); b.disabled = false; b.innerHTML = ""; });
+        const rs = BH.session(sheet.sid), P = BH.game(rs.gameId).scoring.count.podium, twins = BH.podiumTwins(P, sheet.goals, rs.players);
+        overlayRoot.querySelectorAll(".pod-player").forEach(r => { const inp = r.querySelector("[data-p]"); r.classList.toggle("twin", !!inp && twins.includes(inp.dataset.p)); });
+        const tw = overlayRoot.querySelector("#pod-twins"); if (tw) tw.innerHTML = twinsNote(P, twins);
+      }
       const rs = BH.session(sheet.sid), st = raceSheetState(rs);
       const res = overlayRoot.querySelector("#race-result"), tie = overlayRoot.querySelector("#race-tie"), btn = overlayRoot.querySelector('[data-act="race-save"]');
       if (res) res.textContent = st.text; if (tie) tie.innerHTML = raceTieHTML(st, BH.game(BH.session(sheet.sid).gameId)); if (btn) btn.disabled = !st.winners.length;
@@ -3222,7 +3276,7 @@
   window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", applyTheme);
 
   /* ---------- start ---------- */
-  BH.version = "0.40.1";
+  BH.version = "0.41.0";
   applyTheme();
   // reloaded while a sheet was open: step off its history entry; a fresh start has nothing before it
   if (history.state && history.state.ov) history.back();

@@ -9,7 +9,7 @@ const ctx = {
 };
 ctx.window = ctx;
 vm.createContext(ctx);
-for (const f of ["js/util.js", "js/store.js", "js/games.js", "js/chances.js", "js/art.js", "games/flip7.js", "games/flip7v.js", "games/faraway.js", "games/thegang.js", "games/crokinole.js", "games/coconuts.js", "games/goldfever.js", "games/zoo.js", "games/toybattle.js", "games/dobble.js", "games/ribbit.js", "games/jackal.js", "games/bigwalk.js", "games/cheese.js"])
+for (const f of ["js/util.js", "js/store.js", "js/games.js", "js/chances.js", "js/art.js", "games/flip7.js", "games/flip7v.js", "games/faraway.js", "games/thegang.js", "games/crokinole.js", "games/coconuts.js", "games/goldfever.js", "games/zoo.js", "games/toybattle.js", "games/dobble.js", "games/ribbit.js", "games/jackal.js", "games/bigwalk.js", "games/cheese.js", "games/dragons.js"])
   vm.runInContext(fs.readFileSync(path.join(__dirname, "..", "app", f), "utf8"), ctx, { filename: f });
 const BH = ctx.BH, g = BH.game("flip7");
 let passed = 0;
@@ -1563,4 +1563,97 @@ console.log(`${passed} passed${process.exitCode ? ", some FAILED" : ""}`);
     assert.strictEqual(JSON.stringify(bad.filter(w => !/^(стол|ел|пол|угол)$/i.test(w))), JSON.stringify([]));
   });
   console.log(`cheese: ${passed - before} passed${process.exitCode ? ", some FAILED" : ""}`);
+}
+{
+  // Летели дракончики: the Russian rules of Эврикус, 8 pages (docs/rules-check.md)
+  const G = BH.game("dragons"), before = passed, P = G.scoring.count.podium;
+  const sess = (n, opts) => ({ gameId: "dragons", players: ["a", "b", "c", "d", "e"].slice(0, n), exp: [], opts: opts || {}, rounds: [] });
+  t("dragons p.1–2: 2–5 players, 5+, 20 min; a race without rounds; the first by the counting game", () => {
+    assert.strictEqual(G.players.min, 2); assert.strictEqual(G.players.max, 5);
+    assert.strictEqual(G.age, "5+"); assert.strictEqual(G.time, "20 мин");
+    assert.ok(BH.isRace(G) && !BH.isCoop(G) && !BH.isEndScored(G)); assert.strictEqual(G.rounds.leader, false);
+    assert.ok(/считалк/.test(G.first.hint) && /часовой/.test(G.first.hint));
+  });
+  t("dragons p.2: the box — 6 dragons, 60 flight cards, 20 goal cards, 4 parts; 20 goal cards = every three of six", () => {
+    const body = G.rules.find(r => r.id === "components").body;
+    for (const s of ["6 фигурок", "60 карточек полёта", "20 карточек целей", "4 части"]) assert.ok(body.includes(s), s);
+    assert.strictEqual(P.colors.length, 6); assert.strictEqual(new Set(P.colors.map(c => c.id)).size, 6);
+    const C = (n, k) => (k === 0 ? 1 : (C(n - 1, k - 1) * n) / k); assert.strictEqual(C(6, 3), 20, "the FAQ about equal goal cards counts on it");
+  });
+  t("dragons p.2: setup — the parts in order, all dragons on the start, 5 equal stacks scales up, one goal card each face down", () => {
+    const st = BH.setupSteps(sess(3)), by = id => st.find(s => s.id === id).text;
+    assert.deepStrictEqual([...st.map(s => s.id)], ["board", "start", "flight", "goals"]);
+    assert.match(by("board"), /\*А\*, \*Б\*, \*В\*.*\*Г\*/); assert.match(by("start"), /\*6\*.*\*стартовое облако\*/);
+    assert.match(by("flight"), /\*60\*.*\*5 равных стопок\*.*\*чешуёй вверх\*/s); assert.match(by("goals"), /\*20\*.*по одной \*в закрытую\*.*\*не показывайте\*/s);
+  });
+  t("dragons p.5–7: the turn — any stack, the nearest donut, back too but never to the start, a taken donut passed, the podium", () => {
+    const r = o => G.rounds.reminder(BH.ctxOf(sess(3, o))).join(" ");
+    assert.match(r(), /из \*любой\* стопки/); assert.match(r(), /\*ближайший\* пончик этого цвета — вперёд или назад/);
+    assert.match(r(), /только \*вперёд\*: на старт он не возвращается/); assert.match(r(), /Пончик \*занят\*.*следующего пончика этого цвета/);
+    assert.match(r(), /пончиком \*любого\* цвета/); assert.match(r(), /верхнюю \*свободную\* ступеньку/); assert.match(r(), /игроку \*слева\*/);
+    // p.6: with the youngest — forward only, an option of the game
+    assert.ok(G.options.some(o => o.id === "forward" && o.default === false));
+    assert.match(r({ forward: true }), /\*вперёд\* на ближайший/); assert.ok(!/вперёд или назад|на старт он/.test(r({ forward: true })));
+  });
+  t("dragons p.7–8: the end — the third on the podium or three stacks empty; 7, 5, 3 points; equal — counting game or shared", () => {
+    const end = G.scoring.end().join(" ");
+    assert.match(end, /\*третий\* дракончик/); assert.match(end, /\*три\* стопки.*последнюю взятую карточку/); assert.match(end, /\*лидеров\*/);
+    assert.deepStrictEqual([...P.steps.map(s => s.points)], [7, 5, 3]); assert.strictEqual(P.pick, 3);
+    assert.ok(Array.isArray(G.scoring.goals) && !BH.raceGoals(G, sess(3)).length, "no win at once: the end is always a count");
+    assert.strictEqual(G.scoring.count.how, "podium"); assert.strictEqual(G.scoring.count.max, 7 + 5 + 3);
+    assert.ok(G.scoring.count.tie === "pick" && G.scoring.count.tieAll, "equal: the counting game or a shared win (p.8)");
+  });
+  t("dragons p.8: the points — each dragon of the card on the podium scores its step; not complete — nothing", () => {
+    const pod = ["yellow", "blue", "red"];
+    assert.strictEqual(BH.podiumScore(P, pod, ["yellow", "red", "purple"]), 10, "the picture: 7 + 3");
+    assert.strictEqual(BH.podiumScore(P, pod, ["red", "blue", "yellow"]), 15, "all three");
+    assert.strictEqual(BH.podiumScore(P, pod, ["green", "brown", "purple"]), 0, "none");
+    assert.strictEqual(BH.podiumScore(P, pod, ["blue", "green", "brown"]), 5);
+    assert.strictEqual(BH.podiumScore(P, pod, ["yellow", "red"]), null, "two dragons are not a card");
+    assert.strictEqual(BH.podiumScore(P, pod, ["yellow", "yellow", "red"]), null, "three different dragons");
+    assert.strictEqual(BH.podiumScore(P, ["yellow", null, "red"], ["yellow", "red", "blue"]), null, "the podium not full");
+    assert.strictEqual(BH.podiumScore(P, ["yellow", "yellow", "red"], ["yellow", "red", "blue"]), null, "one dragon on one step");
+    assert.strictEqual(BH.podiumScore(P, ["pink", "blue", "red"], ["pink", "red", "blue"]), null, "only the six colours");
+    // the most points wins; equal — the counting game (picked) or a shared win
+    let r = BH.raceCountWinners(G, ["a", "b", "c"], { a: 10, b: 8, c: 0 }); assert.deepStrictEqual([...r.winners], ["a"]);
+    r = BH.raceCountWinners(G, ["a", "b", "c"], { a: 10, b: 10, c: 3 }); assert.ok(r.open && !r.winners.length);
+    r = BH.raceCountWinners(G, ["a", "b", "c"], { a: 10, b: 10, c: 3 }, null, "b"); assert.deepStrictEqual([...r.winners], ["b"]);
+    r = BH.raceCountWinners(G, ["a", "b", "c"], { a: 10, b: 10, c: 3 }, null, "all"); assert.deepStrictEqual([...r.winners], ["a", "b"]);
+  });
+  t("dragons: equal goal cards are pointed out", () => {
+    assert.deepStrictEqual([...BH.podiumTwins(P, { a: ["red", "blue", "green"], b: ["green", "red", "blue"], c: ["red", "blue", "brown"] }, ["a", "b", "c"])].sort(), ["a", "b"]);
+    assert.deepStrictEqual([...BH.podiumTwins(P, { a: ["red", "blue"], b: ["red", "blue"], c: [] }, ["a", "b", "c"])], [], "not marked in full — not compared");
+  });
+  t("dragons: the podium and the goal cards are kept; nonsense dropped", () => {
+    BH.replaceFromSync({ players: [{ id: "a", name: "А" }, { id: "b", name: "Б" }], places: [], placesTouched: true,
+      sessions: [{ id: "d1", gameId: "dragons", players: ["a", "b"], status: "finished", rounds: [], winners: ["a"],
+        race: { how: "podium", counts: { a: 10, b: 5 }, podium: ["yellow", "blue", "red"], goals: { a: ["yellow", "red", "purple"], b: ["blue", "green", "brown"], z: ["red", "blue", "green"] } } },
+        { id: "d2", gameId: "dragons", players: ["a", "b"], status: "finished", rounds: [], winners: ["b"],
+          race: { how: "podium", counts: { a: 3, b: 7 }, podium: ["yellow", "yellow", "red"], goals: { a: ["red", "red"], b: "x" } } }] });
+    const by = id => BH.state.sessions.find(x => x.id === id);
+    assert.strictEqual(JSON.stringify(by("d1").race), JSON.stringify({ how: "podium", counts: { a: 10, b: 5 }, podium: ["yellow", "blue", "red"], goals: { a: ["yellow", "red", "purple"], b: ["blue", "green", "brown"] } }));
+    assert.strictEqual(JSON.stringify(by("d2").race), JSON.stringify({ how: "podium", counts: { a: 3, b: 7 } }));
+  });
+  t("dragons: rules, groups, questions refer to real sections; pages 2–8", () => {
+    const ids = new Set(G.rules.map(r => r.id));
+    for (const gr of G.ruleGroups) for (const id of gr.ids) assert.ok(ids.has(id), "group " + id);
+    for (const gr of G.faqGroups) for (const id of gr.refs) assert.ok(ids.has(id), "faq group " + id);
+    for (const f of G.faq) { assert.ok(ids.has(f.ref), "faq ref " + f.ref); if (f.src) assert.ok(BH.FAQ_SRC[f.src], "faq src " + f.src); }
+    assert.ok(G.rules.every(r => r.page >= 2 && r.page <= 8));
+    const grouped = new Set(G.ruleGroups.flatMap(gr => gr.ids)); for (const id of ids) assert.ok(grouped.has(id), "rule in a group: " + id);
+    assert.ok(G.faq.some(f => /уже на пьедестале/.test(f.q) && f.src === "disputed"), "a card of a dragon on the podium — the book says nothing");
+  });
+  t("dragons: every picture is in the repository and in the offline cache; forward only shows no way back", () => {
+    const html = [G.cover, G.rounds.art(BH.ctxOf(sess(2))), G.rounds.art(BH.ctxOf(sess(2, { forward: true }))), ...BH.setupSteps(sess(2)).map(s => s.art), ...G.rules.map(r => r.art)].join("");
+    const srcs = [...new Set([...html.matchAll(/src="([^"]+)"/g)].map(m => m[1]))], sw = fs.readFileSync(path.join(__dirname, "../app/sw.js"), "utf8");
+    for (const src of srcs) { assert.ok(fs.existsSync(path.join(__dirname, "../app", src)), src); assert.ok(sw.includes(`"${src.split("/").pop().replace(".webp", "")}"`), "sw: " + src); }
+    assert.match(G.rounds.art(BH.ctxOf(sess(2, { forward: true }))), /fly-fwd/); assert.match(G.rounds.art(BH.ctxOf(sess(2))), /fly\.webp/);
+  });
+  t("dragons: in-game texts are neutral — no «-л» forms", () => {
+    const texts = [...G.rounds.reminder(BH.ctxOf(sess(2))), ...G.scoring.end(), ...BH.setupSteps(sess(2)).map(x => x.text), G.first.hint,
+      ...Object.values(P).filter(v => typeof v === "string"), ...["fill", "sheetHint", "done", "allDone", "tieWin", "tieAll"].map(k => G.scoring.count[k])].join(" ").replace(/[Кк]то [а-яё]+/g, "");
+    const bad = texts.match(/[А-Яа-яё]+(?:ил|ыл|ал|ял|ёл|ел|лся|лась)(?![А-Яа-яё])/g) || [];
+    assert.strictEqual(JSON.stringify(bad.filter(w => !/^(стол|ел|пол|угол|пьедестал)$/i.test(w))), JSON.stringify([]));
+  });
+  console.log(`dragons: ${passed - before} passed${process.exitCode ? ", some FAILED" : ""}`);
 }

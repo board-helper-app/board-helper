@@ -1,6 +1,6 @@
 // Offline cache for the phone version: the app's own files only.
 // Service workers run only over HTTPS (or on localhost), so offline mode needs the app hosted on HTTPS.
-const CACHE = "nastolki-v106";
+const CACHE = "nastolki-v107";
 const FONTS = ["onest-cyrillic-400", "onest-latin-400", "onest-cyrillic-500", "onest-latin-500", "onest-cyrillic-600", "onest-latin-600",
   "onest-cyrillic-700", "onest-latin-700", "unbounded-cyrillic-600", "unbounded-latin-600", "unbounded-cyrillic-700", "unbounded-latin-700"]
   .map(f => `fonts/${f}-normal.woff2`);
@@ -11,7 +11,8 @@ const THEGANG_ART = ["vaults","shuffle-deal","chips","silence","preflop","flop",
 const JACKAL_ART = ["crews","shuffle","islands-remove","bank","explore","carry-coin","combat","ship-move","first","ships","swim","end","bottle","abilities","teams","expansions","tile-coins","tile-bottles","tile-missionary","tile-friday","tile-gunn","tile-cart","tile-turtle","tile-arrow","tile-ice","tile-trampoline","tile-dice","tile-croc","tile-balloon","tile-plane","tile-horse","tile-gun","tile-tangled","tile-wheel","tile-cave","tile-maze","tile-pit","tile-keg","tile-fort","tile-shrine","tile-jungle","tile-palm","tile-cannibal","tile-caramba","tile-musket","tile-quake","tile-lighthouse","tile-smoke","tile-spyglass","tile-tide","tile-empty","island-1","island-2","island-3","setup-original","cover","shuffle-expansions"].map(name => `games/jackal-art/${name}.webp`);
 const BIGWALK_ART = ["shuffle","start","coins","dice","portal","gum","finish","mine","tile-good","tile-bad","tile-shop","tile-portal","tile-tadam","tile-colors","tile-gum","tile-safe","tile-mine","tile-bike","tile-luck","tile-spread","tile-tornado","tile-tribute","tile-fight","tile-nooo","tile-cross","deck-slots","tadam-original","abilities","cover"].map(name => `games/bigwalk-art/${name}.webp`);
 const CHEESE_ART = ["shuffle","pantry","discard-space","match","peek","take-discard","refill","third-trap","tile-h1","tile-h2","tile-h3","tile-h4","tile-h5","tile-h6","cover"].map(name => `games/cheese-art/${name}.webp`);
-const SHELL = [...CHEESE_ART, ...BIGWALK_ART, ...JACKAL_ART, ...THEGANG_ART, ...TOYBATTLE_ART, ...RIBBIT_ART, ...DOBBLE_ART, "./", "index.html", "styles.css", "manifest.webmanifest", "fonts/fonts.css", ...FONTS,
+const DRAGONS_ART = ["board","start","stacks","goals","flip","fly","fly-fwd","finish","end","score","cover"].map(name => `games/dragons-art/${name}.webp`);
+const SHELL = [...DRAGONS_ART, ...CHEESE_ART, ...BIGWALK_ART, ...JACKAL_ART, ...THEGANG_ART, ...TOYBATTLE_ART, ...RIBBIT_ART, ...DOBBLE_ART, "./", "index.html", "styles.css", "manifest.webmanifest", "fonts/fonts.css", ...FONTS,
   "js/util.js", "js/sync.js", "js/store.js", "js/cloud.js", "js/voice.js", "js/assets.js", "js/games.js", "js/chances.js", "js/art.js", "js/speech.js", "js/wheel.js", "js/rules.js", "js/app.js",
   ...["shuffle","deal","advanced","market","sanctuaries","tableau","explore","find","choose-sanctuary","scoring","last-round","wonders","cover","decks","card","biomes","quest","scoring-icons","original-sanctuaries","sanct-biome","phases","example"].map(name => `games/faraway-art/${name}.webp`),
   ...["deck","space","goal","challenge","shuffle","table","second-deck","brutal","zero","unlucky7","lucky13","score","just-one-more","flip4","swap","steal","discard","stay","cover","actions","modifiers","specials","seven","card-justonemore","card-swap","card-steal","card-discard","card-flip4","card-zero","card-unlucky7","card-lucky13","card-minus2","card-minus10","card-half"].map(name => `games/flip7v-art/${name}.webp`),
@@ -20,7 +21,7 @@ const SHELL = [...CHEESE_ART, ...BIGWALK_ART, ...JACKAL_ART, ...THEGANG_ART, ...
   ...["bag","bag-gold-only","goal-5","goal-4","success","bust","black","emerald","ruby","stones","stone-gold","stone-white","stone-gray","stone-black","stone-ruby","stone-emerald","cover"].map(name => `games/goldfever-art/${name}.webp`),
   ...["cover","kit","cups2","cups3","cups4","pyramid","shot","cards","mc-again","mc-freeze","mc-blind","mc-wind","mc-aim","mc-far"].map(name => `games/coconuts-art/${name}.webp`),
   ...["board","teams","solo-8","solo-12","shot","hit","line","goal","round-points"].map(name => `games/crokinole-art/${name}.webp`),
-  "games/flip7.js", "games/flip7v.js", "games/faraway.js", "games/thegang.js", "games/crokinole.js", "games/coconuts.js", "games/goldfever.js", "games/zoo.js", "games/toybattle.js", "games/dobble.js", "games/ribbit.js", "games/jackal.js", "games/bigwalk.js", "games/cheese.js", "icons/icon-192.png", "icons/icon-512.png", "icons/maskable-512.png", "icons/apple-touch-icon.png"];
+  "games/flip7.js", "games/flip7v.js", "games/faraway.js", "games/thegang.js", "games/crokinole.js", "games/coconuts.js", "games/goldfever.js", "games/zoo.js", "games/toybattle.js", "games/dobble.js", "games/ribbit.js", "games/jackal.js", "games/bigwalk.js", "games/cheese.js", "games/dragons.js", "icons/icon-192.png", "icons/icon-512.png", "icons/maskable-512.png", "icons/apple-touch-icon.png"];
 
 self.addEventListener("install", e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(SHELL.map(u => new Request(u, { cache: "reload" })))).then(() => self.skipWaiting()));

@@ -205,6 +205,21 @@
     const w = BH.raceTieWinner(C, top, picked);
     return { best, top, winners: w ? [w] : [], open: !w };
   };
+  // a count by the podium (Летели дракончики, count.podium): the dragons on the steps, top first, and the dragons on
+  // a player's goal card; each dragon of the card standing on the podium scores its step. Not complete — null
+  BH.podiumScore = (P, podium, goal) => {
+    if (!P || !Array.isArray(podium) || !Array.isArray(goal)) return null;
+    const ok = c => P.colors.some(x => x.id === c);
+    if (podium.length !== P.steps.length || !podium.every(ok) || new Set(podium).size !== podium.length) return null;
+    if (goal.length !== P.pick || !goal.every(ok) || new Set(goal).size !== goal.length) return null;
+    return podium.reduce((a, c, i) => a + (goal.includes(c) ? P.steps[i].points : 0), 0);
+  };
+  // two players cannot hold the same goal card: every card is a different set of dragons — the ones typed twice
+  BH.podiumTwins = (P, goals, players) => {
+    const key = id => (Array.isArray(goals[id]) && goals[id].length === P.pick ? [...goals[id]].sort().join() : null), seen = new Map(), twins = new Set();
+    for (const id of players) { const k = key(id); if (!k) continue; if (seen.has(k)) { twins.add(id); twins.add(seen.get(k)); } else seen.set(k, id); }
+    return [...twins];
+  };
   BH.raceResult = (players, counts) => {
     const v = id => Math.max(0, Math.round(Number((counts || {})[id])) || 0), best = players.length ? Math.max(...players.map(v)) : 0;
     return { best, top: players.filter(id => v(id) === best) };
