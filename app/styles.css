@@ -196,6 +196,8 @@ input[type="datetime-local"].input{min-height:48px}
 .art:has(.dragons-plate){background:#D6EEFB}
 .art:has(.quoridor-plate){background:#F3EBDD}
 .art:has(.hotstreak-plate){background:#F4F1E4}
+.art:has(.taco-plate){background:#FBF8E4}
+.art:has(.fastrack-plate){background:#F6F1E7}
 .art .flip7-plate{height:100%;min-height:0;object-fit:contain}
 .zoomed .art .flip7-plate{height:auto!important}
 .rule-img img.flip7-plate{max-width:754px}

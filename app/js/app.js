@@ -279,7 +279,7 @@
     const fin = finishedSessions();
     return BH.games.map(g => ({ g, n: fin.filter(s => s.gameId === g.id).length })).sort((a, b) => b.n - a.n || a.g.name.localeCompare(b.g.name, "ru"));
   }
-  const squareCovers = new Set(["hotstreak","quoridor","dragons","cheese","bigwalk","jackal","thegang","toybattle","ribbit","dobble","faraway","flip7","flip7v","zoo","goldfever","coconuts","crokinole"]);
+  const squareCovers = new Set(["taco","fastrack","hotstreak","quoridor","dragons","cheese","bigwalk","jackal","thegang","toybattle","ribbit","dobble","faraway","flip7","flip7v","zoo","goldfever","coconuts","crokinole"]);
   const coverOf = (g, cls) => {
     if (g && squareCovers.has(g.id)) {
       return `<span class="cover has-img ${cls || ""}"><img src="games/covers/${esc(g.id)}.webp" alt="" width="512" height="512" decoding="async"></span>`;
@@ -1442,6 +1442,8 @@
     const hours = ms => ms >= 3600000 ? (ms / 3600000).toFixed(1).replace(".", ",") + " ч" : BH.fmtDuration(ms);
     const top = st.players[0], place = st.favPlace && BH.place(st.favPlace.id);
     const best = st.bestScore, bestR = BH.isPick(g) ? null : st.bestRound, W = BH.roundW(g);
+    // a pick game to a number of wins (Fastrack: 2 of 3): the winner always has that many — no record to show
+    const pickTo = BH.isPick(g) && !!g.scoring.target, cap1 = t => t.charAt(0).toUpperCase() + t.slice(1);
     const avg = [st.avgTime && BH.fmtDuration(st.avgTime) + " на партию", st.avgRounds && String(st.avgRounds).replace(".", ",") + " " + (W.avg ? avgWord(st.avgRounds, ...W.avg) : avgWord(st.avgRounds, "раунд", "раунда", "раундов")),
       String(st.avgTable).replace(".", ",") + " " + avgWord(st.avgTable, "игрок", "игрока", "игроков")].filter(Boolean).join(" · ");
     return `<div class="kpis k3">
@@ -1452,18 +1454,18 @@
       <section class="panel">
         <h2 style="margin-bottom:6px">Рекорды</h2>
         ${factsList([
-          line(BH.isPick(g) ? "Больше всех побед за партию" : "Лучший счёт", best && (best.v || lowerWins(g)) ? two(best.v, `${name(best.id)}, ${BH.fmtDate(best.at)}`) : ""),
+          line(BH.isPick(g) ? "Больше всех побед за партию" : "Лучший счёт", !pickTo && best && (best.v || lowerWins(g)) ? two(best.v, `${name(best.id)}, ${BH.fmtDate(best.at)}`) : ""),
           ...(st.minis || []).map(m => { const k = BH.miniOf(g, m.mini), O = g.scoring.one;
             return line(`«${esc(k.name)}», ${k.goal === "fewest" ? "меньше" : "больше"} всех ${esc(O.unit[2])}`, two(m.v, `${name(m.id)}, ${BH.fmtDate(m.at)}`)); }),
           line("Чаще всех побеждает", top && top.wins ? two(name(top.id), top.wins + " " + BH.plural(top.wins, "победа", "победы", "побед")) : ""),
           line("Лучший раунд", bestR ? two(bestR.v, name(bestR.id)) : ""),
-          line(BH.isPick(g) ? "Мини-игр у победителя в среднем" : "Средний счёт победителя", st.avgWin || (st.avgWin === 0 && lowerWins(g)) ? String(st.avgWin).replace(".", ",") : ""),
+          line(BH.isPick(g) ? cap1(W.gen) + " у победителя в среднем" : "Средний счёт победителя", !pickTo && st.avgWin || (st.avgWin === 0 && lowerWins(g)) ? String(st.avgWin).replace(".", ",") : ""),
           line("Где играют", place ? two(`<a href="#/places/${esc(place.id)}">${esc(place.name)}</a>`, parties(st.favPlace.n)) : ""),
           line("В среднем", esc(avg)),
           datesLine(st.first, st.last),
         ], gcard.allRec, "gc-rec")}
       </section>
-      <section class="panel"><h2 style="margin-bottom:8px">Игроки</h2>${st.players.length > 1 ? prSortBar("game", gcard.psort || "wins", ["wins", "rate", "best"]) : ""}<div class="list">${playersRateList(sortPlayers(st.players, gcard.psort || "wins", lowerWins(g)).slice(0, gcard.allPl ? undefined : 3), true)}</div>${st.players.length > 3 ? `<button type="button" class="btn ghost sm block more-btn" data-act="gc-all">${gcard.allPl ? "Свернуть" : "Показать всех · " + st.players.length}</button>` : ""}<p class="tiny muted" style="margin-top:6px">${BH.isPick(g) ? (st.withRounds ? "Справа — больше всего побед в мини-играх за партию и в среднем." : "Карточки разных мини-игр не сравниваются: рекорды каждой мини-игры — выше.") : "Справа — лучший и средний счёт."}</p></section>`;
+      <section class="panel"><h2 style="margin-bottom:8px">Игроки</h2>${st.players.length > 1 ? prSortBar("game", gcard.psort || "wins", ["wins", "rate", "best"]) : ""}<div class="list">${playersRateList(sortPlayers(st.players, gcard.psort || "wins", lowerWins(g)).slice(0, gcard.allPl ? undefined : 3), true)}</div>${st.players.length > 3 ? `<button type="button" class="btn ghost sm block more-btn" data-act="gc-all">${gcard.allPl ? "Свернуть" : "Показать всех · " + st.players.length}</button>` : ""}<p class="tiny muted" style="margin-top:6px">${BH.isPick(g) && g.scoring.target ? "" : BH.isPick(g) ? (st.withRounds ? `Справа — больше всего побед ${W.wonIn || "в мини-играх"} за партию и в среднем.` : "Карточки разных мини-игр не сравниваются: рекорды каждой мини-игры — выше.") : "Справа — лучший и средний счёт."}</p></section>`;
   }
 
   /* ---------- players & places ---------- */
@@ -1808,7 +1810,7 @@
     if (BH.isEndScored(g)) { const last = g.rounds.count || 8; return `${BH.roundW(g).lc} ${Math.min(s.rounds.length + 1, last)} из ${last}, игроков ${s.players.length}, ${BH.endW(g).voice}`; }
     const tot = Object.values(BH.totals(s)), best = tot.length ? Math.max(...tot) : 0;
     if (BH.isOne(g, BH.ctxOf(s))) return `${g.scoring.one.summary || "одна мини-игра"}, игроков ${s.players.length}`;
-    return BH.isPick(g) ? `мини-игра ${s.rounds.length + 1}, игроков ${s.players.length}, больше всех побед ${best}` : `раунд ${s.rounds.length + 1}, игроков ${s.players.length}, лучший счёт ${best}`;
+    return BH.isPick(g) ? `${BH.roundW(g).lc} ${s.rounds.length + 1}, игроков ${s.players.length}, больше всех побед ${best}` : `раунд ${s.rounds.length + 1}, игроков ${s.players.length}, лучший счёт ${best}`;
   }
   function openAsk(gameId, sid) {
     BH.speech.stop();
@@ -3318,7 +3320,7 @@
   window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", applyTheme);
 
   /* ---------- start ---------- */
-  BH.version = "0.46.1";
+  BH.version = "0.47.0";
   applyTheme();
   // reloaded while a sheet was open: step off its history entry; a fresh start has nothing before it
   if (history.state && history.state.ov) history.back();

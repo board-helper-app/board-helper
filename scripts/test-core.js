@@ -9,7 +9,7 @@ const ctx = {
 };
 ctx.window = ctx;
 vm.createContext(ctx);
-for (const f of ["js/util.js", "js/store.js", "js/games.js", "js/chances.js", "js/charts.js", "js/art.js", "games/flip7.js", "games/flip7v.js", "games/faraway.js", "games/thegang.js", "games/crokinole.js", "games/coconuts.js", "games/goldfever.js", "games/zoo.js", "games/toybattle.js", "games/dobble.js", "games/ribbit.js", "games/jackal.js", "games/bigwalk.js", "games/cheese.js", "games/dragons.js", "games/quoridor.js", "games/hotstreak.js"])
+for (const f of ["js/util.js", "js/store.js", "js/games.js", "js/chances.js", "js/charts.js", "js/art.js", "games/flip7.js", "games/flip7v.js", "games/faraway.js", "games/thegang.js", "games/crokinole.js", "games/coconuts.js", "games/goldfever.js", "games/zoo.js", "games/toybattle.js", "games/dobble.js", "games/ribbit.js", "games/jackal.js", "games/bigwalk.js", "games/cheese.js", "games/dragons.js", "games/quoridor.js", "games/hotstreak.js", "games/taco.js", "games/fastrack.js"])
   vm.runInContext(fs.readFileSync(path.join(__dirname, "..", "app", f), "utf8"), ctx, { filename: f });
 const BH = ctx.BH, g = BH.game("flip7");
 let passed = 0;
@@ -1836,6 +1836,113 @@ console.log(`${passed} passed${process.exitCode ? ", some FAILED" : ""}`);
     assert.strictEqual(JSON.stringify([...new Set(bad.filter(w => !ok.test(w)))]), JSON.stringify([]));
   });
   console.log(`hotstreak: ${passed - before} passed${process.exitCode ? ", some FAILED" : ""}`);
+}
+{
+  // Тако, кот, коза, сыр, пицца: Hobby World's Russian rules (pages 2–6 as printed); 6–8 players — the English rules of the
+  // same Blue Orange edition, p. 3 (docs/rules-check.md)
+  const G = BH.game("taco"), before = passed;
+  const sess = n => ({ gameId: "taco", players: Array.from({ length: n }, (_, i) => "p" + i), exp: [], opts: {}, rounds: [] });
+  const ctx = n => BH.ctxOf(sess(n)), ph = n => BH.stagesOf(G, ctx(n), 1, 3).map(p => p.title + ": " + p.steps.join(" ")).join(" | ");
+  t("taco p.2: 2–8 players (the box), 8+, 10 min; a race; the player left of the dealer starts", () => {
+    assert.strictEqual(G.players.min, 2); assert.strictEqual(G.players.max, 8);
+    assert.strictEqual(G.age, "8+"); assert.strictEqual(G.time, "10 мин");
+    assert.ok(BH.isRace(G) && !BH.isCoop(G) && !BH.isEndScored(G)); assert.strictEqual(G.rounds.leader, false);
+    assert.match(G.first.hint, /слева от раздающего/);
+  });
+  t("taco p.2, en p.3: 64 cards; 12 each for 2–5, 10 for six, 8 for seven or eight; the rest to the box; nobody looks", () => {
+    assert.match(G.rules.find(r => r.id === "components").body, /64 карты/);
+    const step = n => BH.setupSteps(sess(n)).find(s => s.id === "deal");
+    for (const [n, k] of [[2, 12], [5, 12], [6, 10], [7, 8], [8, 8]]) {
+      assert.match(step(n).text, new RegExp(`по \\*${k}\\* карт рубашкой`), n + " players");
+      assert.ok(n * k <= 64, "enough cards for " + n);
+    }
+    assert.match(step(4).text, /в коробку/); assert.match(step(4).text, /\*не смотрите\*/);
+    assert.match(G.rules.find(r => r.id === "setup").body, /английских правил/);
+  });
+  t("taco p.3–5: the turn, the match (the hand on top takes the pile, starts with «Тако»), the specials, the penalties", () => {
+    const r = ph(4);
+    assert.match(r, /Не глядя/); assert.match(r, /тако, кот, коза, сыр, пицца/); assert.match(G.first.hint, /к игроку слева/);
+    assert.strictEqual(BH.stagesOf(G, ctx(4), 1, 3).length, 3, "three stages: four do not fit a phone's strip");
+    assert.match(r, /Чья рука \*сверху\*, тот забирает всю стопку под низ/); assert.match(r, /новый раунд со слова «\*Тако\*»/);
+    assert.match(r, /\*Горилла\* — постучи себя по груди/); assert.match(r, /\*Сурок\* — постучи по столу обеими руками/); assert.match(r, /\*Нарвал\* — сложи руки над головой рогом/);
+    assert.match(r, /последним — \*забираешь\*/); assert.match(r, /\*без совпадения\*/); assert.match(r, /отдёрнешь руку/);
+    assert.match(r, /забудешь слово/); assert.match(r, /пропустишь ход/); assert.match(r, /Подсмотришь/); assert.match(r, /Если карты кончились, всё равно говори слово/);
+    assert.deepStrictEqual([...G.cards.map(k => k.id)], ["gorilla", "groundhog", "narwhal"]);
+  });
+  t("taco p.5–6: out of cards one plays on; the winner — no cards left and the first hand on the pile", () => {
+    const end = G.scoring.end().join(" ");
+    assert.match(end, /\*без карт\*/); assert.match(end, /\*первой\*/); assert.match(end, /совпадении или особой карте/);
+    assert.ok(!G.scoring.count, "no count: the first one wins"); assert.strictEqual(BH.raceGoals(G, sess(3)).length, 1);
+    assert.match(G.rules.find(r => r.id === "empty").body, /не выбываете/);
+  });
+  t("taco: rules, groups, questions refer to real sections; pages 2–6", () => {
+    const ids = new Set(G.rules.map(r => r.id));
+    for (const gr of G.ruleGroups) for (const id of gr.ids) assert.ok(ids.has(id), "group " + id);
+    for (const gr of G.faqGroups) for (const id of gr.refs) assert.ok(ids.has(id), "faq group " + id);
+    for (const f of G.faq) { assert.ok(ids.has(f.ref), "faq ref " + f.ref); if (f.src) assert.ok(BH.FAQ_SRC[f.src], "faq src " + f.src); }
+    assert.ok(G.rules.every(r => r.page >= 2 && r.page <= 6));
+    const grouped = new Set(G.ruleGroups.flatMap(gr => gr.ids)); for (const id of ids) assert.ok(grouped.has(id), "rule in a group: " + id);
+    assert.ok(G.faq.some(f => /после особой карты/i.test(f.q) && f.src === "players"), "who starts after a special card — not said");
+  });
+  t("taco: every picture is in the repository and in the offline cache", () => {
+    const html = [G.cover, G.rounds.art, ...BH.setupSteps(sess(4)).map(s => s.art), ...G.rules.map(r => r.art || ""), ...G.cards.map(k => k.art)].join("");
+    const srcs = [...new Set([...html.matchAll(/src="([^"]+)"/g)].map(m => m[1]))], sw = fs.readFileSync(path.join(__dirname, "../app/sw.js"), "utf8");
+    assert.strictEqual(srcs.length, 10);
+    // the name in the game's own list of sw.js (names like «deal» or «end» are used by other games too)
+    const list = (sw.match(/const TACO_ART = \[([^\]]*)\]/) || [])[1] || "";
+    for (const src of srcs) { assert.ok(fs.existsSync(path.join(__dirname, "../app", src)), src);
+      assert.ok(src.includes("covers/") ? sw.includes(`"taco"`) : list.includes(`"${src.split("/").pop().replace(".webp", "")}"`), "sw: " + src); }
+  });
+  t("taco: in-game texts are neutral — no «-л» forms", () => {
+    const texts = [ph(2), ph(8), ...G.scoring.end(), ...BH.setupSteps(sess(4)).map(x => x.text), G.first.hint, G.scoring.goalAsk, G.scoring.goalText,
+      G.scoring.goalDone, ...G.cards.map(k => k.does + " " + k.note), ...G.faq.map(f => f.q + " " + f.a)].join(" ").replace(/[Кк]то [а-яё]+/g, "");
+    const bad = texts.match(/[А-Яа-яё]+(?:ил|ыл|ал|ял|ёл|ел|лся|лась)(?![А-Яа-яё])/g) || [];
+    assert.strictEqual(JSON.stringify(bad.filter(w => !/^(стол|ел|пол|нарвал|оказалась|легла)$/i.test(w))), JSON.stringify([]));
+  });
+  console.log(`taco: ${passed - before} passed${process.exitCode ? ", some FAILED" : ""}`);
+}
+{
+  // Fastrack: Blue Orange's English rules, pages 1–2 (docs/rules-check.md)
+  const G = BH.game("fastrack"), before = passed;
+  const sess = rounds => ({ gameId: "fastrack", players: ["a", "b"], exp: [], opts: {}, rounds: rounds.map(w => ({ scores: { a: w === "a" ? 1 : 0, b: w === "b" ? 1 : 0 } })) });
+  const ph = () => BH.stagesOf(G, BH.ctxOf(sess([])), 1, 3).map(p => p.title + ": " + p.steps.join(" ")).join(" | ");
+  t("fastrack p.1: two players, 5+, 10 min, 10 disks; nobody starts — both play at once", () => {
+    assert.strictEqual(G.players.min, 2); assert.strictEqual(G.players.max, 2);
+    assert.strictEqual(G.age, "5+"); assert.strictEqual(G.time, "10 мин"); assert.ok(!G.first, "no first player");
+    assert.match(G.rules.find(r => r.id === "components").body, /10 деревянных дисков/);
+    assert.match(BH.setupSteps(sess([])).find(s => s.id === "board").text, /по \*5\* дисков/);
+  });
+  t("fastrack p.2: a round has one winner; two rounds of three win — the game ends at once", () => {
+    assert.ok(BH.isPick(G) && !BH.isRace(G)); assert.strictEqual(G.scoring.target, 2);
+    assert.strictEqual(BH.checkEnd(sess(["a"])).over, false);
+    assert.strictEqual(BH.checkEnd(sess(["a", "b"])).over, false);
+    const e = BH.checkEnd(sess(["a", "b", "a"])); assert.ok(e.over && !e.tie); assert.deepStrictEqual([...e.winners], ["a"]);
+    const two = BH.checkEnd(sess(["b", "b"])); assert.ok(two.over); assert.deepStrictEqual([...two.winners], ["b"], "2:0 — no third round");
+  });
+  t("fastrack p.2: at once, by the cord with one finger; the slot, the stuck disk, over the wall, off the board", () => {
+    const r = ph();
+    assert.match(r, /\*одновременно\*/); assert.match(r, /только \*резинкой\*: оттягивай её \*одним пальцем\*/);
+    assert.match(r, /через \*щель\*/); assert.match(r, /только \*другим диском\*/); assert.match(r, /перелетел через перегородку.*\*считается\*/);
+    assert.match(r, /\*вне игры\* до конца раунда/); assert.match(r, /\*не осталось\* дисков/);
+    const after = G.rounds.after().join(" "); assert.match(after, /\*5\* дисков/); assert.match(after, /\*2\* раунда/);
+  });
+  t("fastrack: rules, groups, questions refer to real sections; pages 1–2", () => {
+    const ids = new Set(G.rules.map(r => r.id));
+    for (const gr of G.ruleGroups) for (const id of gr.ids) assert.ok(ids.has(id), "group " + id);
+    for (const gr of G.faqGroups) for (const id of gr.refs) assert.ok(ids.has(id), "faq group " + id);
+    for (const f of G.faq) { assert.ok(ids.has(f.ref), "faq ref " + f.ref); if (f.src) assert.ok(BH.FAQ_SRC[f.src], "faq src " + f.src); }
+    assert.ok(G.rules.every(r => r.page === 1 || r.page === 2));
+    const grouped = new Set(G.ruleGroups.flatMap(gr => gr.ids)); for (const id of ids) assert.ok(grouped.has(id), "rule in a group: " + id);
+  });
+  t("fastrack: every picture is in the repository and in the offline cache", () => {
+    const html = [G.cover, G.rounds.art, ...BH.setupSteps(sess([])).map(s => s.art), ...G.rules.map(r => r.art || "")].join("");
+    const srcs = [...new Set([...html.matchAll(/src="([^"]+)"/g)].map(m => m[1]))], sw = fs.readFileSync(path.join(__dirname, "../app/sw.js"), "utf8");
+    assert.strictEqual(srcs.length, 6);
+    const list = (sw.match(/const FASTRACK_ART = \[([^\]]*)\]/) || [])[1] || "";
+    for (const src of srcs) { assert.ok(fs.existsSync(path.join(__dirname, "../app", src)), src);
+      assert.ok(src.includes("covers/") ? sw.includes(`"fastrack"`) : list.includes(`"${src.split("/").pop().replace(".webp", "")}"`), "sw: " + src); }
+  });
+  console.log(`fastrack: ${passed - before} passed${process.exitCode ? ", some FAILED" : ""}`);
 }
 {
   // the statistics charts (js/charts.js): the numbers behind the pictures
